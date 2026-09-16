@@ -1,4 +1,4 @@
-# Game
+# size-game-
 
 A small browser game built with plain HTML, CSS, and JavaScript — no build step, no dependencies.
 
