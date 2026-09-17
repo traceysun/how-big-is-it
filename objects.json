@@ -1,0 +1,92 @@
+[
+  {
+    "name": "Shoebill stork",
+    "file": "shoebill.glb",
+    "height_m": 1.2,
+    "fact": "A shoebill stands about 1.2 m tall and can stay motionless for hours waiting for lungfish."
+  },
+  {
+    "name": "Pink fairy armadillo",
+    "file": "armadillo.glb",
+    "height_m": 0.05,
+    "fact": "The smallest armadillo: about 12 cm long and 5 cm tall. It lives in the sandy plains of central Argentina."
+  },
+  {
+    "name": "Okapi",
+    "file": "okapi.glb",
+    "height_m": 1.9,
+    "fact": "The giraffe's only living relative stands about 1.5 m at the shoulder and 1.9 m to the top of its head."
+  },
+  {
+    "name": "Moai statue",
+    "file": "moai.glb",
+    "height_m": 4.0,
+    "fact": "The average Easter Island moai is about 4 m tall and weighs 12 tonnes. The tallest ever erected is nearly 10 m."
+  },
+  {
+    "name": "Zamboni ice resurfacer",
+    "file": "zamboni.glb",
+    "height_m": 2.2,
+    "fact": "A full-size Zamboni is about 2.2 m tall, 4.5 m long, and tops out at 15 km/h."
+  },
+  {
+    "name": "Dodo",
+    "file": "dodo.glb",
+    "height_m": 1.0,
+    "fact": "The dodo stood about 1 m tall and weighed 10–18 kg. The last one was seen in 1662."
+  },
+  {
+    "name": "Trebuchet",
+    "file": "trebuchet.glb",
+    "height_m": 12,
+    "fact": "A large medieval counterweight trebuchet stood around 12 m tall and could hurl a 90 kg stone 300 m."
+  },
+  {
+    "name": "Tardigrade",
+    "file": "tardigrade.glb",
+    "height_m": 0.0003,
+    "fact": "Tardigrades are about 0.5 mm long and 0.3 mm tall. They survive vacuum, radiation, and being frozen for decades."
+  },
+  {
+    "name": "Southern cassowary",
+    "file": "cassowary.glb",
+    "height_m": 1.6,
+    "fact": "Cassowaries stand up to 1.7 m tall and have a dagger-like claw on each foot. They are often called the world's most dangerous bird."
+  },
+  {
+    "name": "Saiga antelope",
+    "file": "saiga.glb",
+    "height_m": 0.8,
+    "fact": "The saiga stands about 0.8 m tall. Its bulbous nose filters dust in summer and warms air in the Central Asian winter."
+  },
+  {
+    "name": "Naked mole-rat",
+    "file": "molerat.glb",
+    "height_m": 0.04,
+    "fact": "A naked mole-rat is about 4 cm tall and 10 cm long. It can live over 30 years and barely feels pain."
+  },
+  {
+    "name": "Sousaphone",
+    "file": "sousaphone.glb",
+    "height_m": 1.1,
+    "fact": "A sousaphone stands about 1.1 m tall with a 66 cm bell. It was designed in the 1890s so a tuba could be played while marching."
+  },
+  {
+    "name": "Antikythera mechanism",
+    "file": "antikythera.glb",
+    "height_m": 0.33,
+    "fact": "The Antikythera mechanism was about 33 cm tall — a 2,000-year-old Greek gear computer for predicting eclipses, found in a shipwreck in 1901."
+  },
+  {
+    "name": "Terracotta warrior",
+    "file": "warrior.glb",
+    "height_m": 1.85,
+    "fact": "Each terracotta warrior is about 1.85 m tall. Some 8,000 of them guard the tomb of China's first emperor."
+  },
+  {
+    "name": "Stonehenge sarsen stone",
+    "file": "trilithon.glb",
+    "height_m": 4.1,
+    "fact": "The sarsen uprights of Stonehenge's outer circle stand about 4.1 m above ground and weigh around 25 tonnes each."
+  }
+]

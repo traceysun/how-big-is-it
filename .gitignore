@@ -1,0 +1,7 @@
+.DS_Store
+node_modules/
+dist/
+*.log
+raw/
+.claude/
+how-big-is-it-demo.mp4
