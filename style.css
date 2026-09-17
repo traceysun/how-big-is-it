@@ -38,6 +38,13 @@ body {
   #banner-track { animation: none; }
 }
 
+#site-title {
+  text-align: center;
+  font-size: 22px;
+  font-weight: 500;
+  padding: 14px 20px 0;
+}
+
 header {
   display: flex;
   justify-content: space-between;
@@ -133,9 +140,9 @@ button:hover { background: var(--ink); color: var(--paper); }
   box-shadow: 3px 0 0 0 var(--ink), -3px 0 0 0 var(--ink), 0 3px 0 0 var(--ink), 0 -3px 0 0 var(--ink);
 }
 #preview-wrap { display: flex; justify-content: center; padding: 12px; background: var(--rule); }
-#preview { max-width: 100%; max-height: 320px; width: auto; height: auto; }
+#preview { max-width: 100%; max-height: 320px; width: auto; height: 320px; image-rendering: pixelated; }
 #details { display: flex; flex-direction: column; gap: 16px; }
 #details[hidden], #done[hidden], #preview-wrap[hidden], #status[hidden] { display: none; }
 .card { display: flex; flex-direction: column; gap: 10px; padding: 12px 0 16px; border-bottom: 3px dotted var(--rule); }
-.card img { max-height: 200px; width: auto; align-self: flex-start; background: var(--rule); }
+.card img { height: 160px; width: auto; align-self: flex-start; background: var(--rule); image-rendering: pixelated; }
 .card .row { display: flex; gap: 12px; }

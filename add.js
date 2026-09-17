@@ -1,48 +1,42 @@
 const SCORE_API = 'https://how-big-is-it-scores.suntracey.workers.dev';
 const MAX_PX = 1024;
 
-// The cut-out runs on the server (Replicate, via the worker) when that's configured: nothing to
-// download, a few seconds per photo. Otherwise it falls back to running a model in the browser,
-// which is a large one-time download.
-let serverCutout = null;   // null = unknown, true/false once probed
-let browserLib = null;
-let progressText = '';
+// The cut-out runs in the browser (free, nothing leaves the phone). The model is a large one-time
+// download; a service worker keeps it cached, and we fetch its chunks in parallel to warm that
+// cache before the library asks for them one by one.
+const MODEL_BASE = 'https://staticimgly.com/@imgly/background-removal-data/1.7.0/dist/';
+const MODEL = 'isnet_quint8';      // the small model: its rough edges vanish once the cut-out is pixelated
+const PIXELS = 80;                 // longest side of the pixelated cut-out
 const hasGPU = 'gpu' in navigator;
-const cfg = (device) => ({ model: 'isnet_fp16', device, progress: (key, cur, total) => {
+let progressText = '';
+const cfg = (device) => ({ model: MODEL, device, progress: (key, cur, total) => {
   if (key.startsWith('fetch') && total) progressText = `downloading model… ${Math.round((cur / total) * 100)}%`;
 } });
 
-async function probeServer() {
-  if (serverCutout !== null) return serverCutout;
-  try {
-    const r = await fetch(`${SCORE_API}/cutout`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-    serverCutout = r.status === 400;       // 400 = configured (rejects the empty probe); 501/404 = not configured
-  } catch { serverCutout = false; }
-  if (!serverCutout) loadBrowserLib();
-  return serverCutout;
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+
+const lib = import('https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm');
+const warmed = warmModel().then(() => lib).then((m) => m.preload(cfg(hasGPU ? 'gpu' : 'cpu'))).catch(() => {});
+
+async function warmModel() {
+  const res = await (await fetch(MODEL_BASE + 'resources.json')).json();
+  const wanted = [`/models/${MODEL}`, hasGPU ? '/onnxruntime-web/ort-wasm-simd-threaded.jsep.wasm' : '/onnxruntime-web/ort-wasm-simd-threaded.wasm'];
+  const chunks = wanted.flatMap((k) => (res[k]?.chunks || []).map((c) => c.hash));
+  let done = 0;
+  const worker = async () => {
+    while (chunks.length) {
+      await fetch(MODEL_BASE + chunks.shift()).then((r) => r.arrayBuffer()).catch(() => {});
+      done++;
+      progressText = `downloading model… ${Math.round((done / (done + chunks.length)) * 100)}%`;
+    }
+  };
+  await Promise.all(Array.from({ length: 6 }, worker));
+  progressText = '';
 }
-function loadBrowserLib() {
-  if (!browserLib) {
-    browserLib = import('https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm')
-      .then((m) => { m.preload(cfg(hasGPU ? 'gpu' : 'cpu')).catch(() => {}); return m; });
-  }
-  return browserLib;
-}
-probeServer();
 
 async function cutout(file) {
-  if (await probeServer()) {
-    // Replicate wants small data URLs: shrink until it's under ~240 KB.
-    let px = 1024, q = 0.85, dataUrl;
-    do {
-      dataUrl = await downscaleToDataUrl(file, px, q);
-      if (q > 0.6) q -= 0.1; else px = Math.round(px * 0.8);
-    } while (dataUrl.length > 240 * 1024 * 4 / 3 && px > 300);
-    const r = await fetch(`${SCORE_API}/cutout`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image: dataUrl }) });
-    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `server error ${r.status}`);
-    return r.blob();
-  }
-  const { removeBackground } = await loadBrowserLib();
+  const { removeBackground } = await lib;
+  await warmed;
   const small = await downscale(file, MAX_PX);
   try {
     return await removeBackground(small, cfg(hasGPU ? 'gpu' : 'cpu'));
@@ -75,9 +69,17 @@ photo.addEventListener('change', async () => {
     const img = await blobToImage(blob);
     const box = opaqueBounds(img);
     if (!box) throw new Error('no object found — try a clearer photo');
-    // Crop to the cut-out so its height means the object's height.
-    preview.width = box.w; preview.height = box.h;
-    preview.getContext('2d').drawImage(img, box.x, box.y, box.w, box.h, 0, 0, box.w, box.h);
+    // Crop to the cut-out so its height means the object's height, then pixelate it.
+    const s = PIXELS / Math.max(box.w, box.h);
+    preview.width = Math.max(1, Math.round(box.w * s));
+    preview.height = Math.max(1, Math.round(box.h * s));
+    const g = preview.getContext('2d');
+    g.imageSmoothingEnabled = true;
+    g.drawImage(img, box.x, box.y, box.w, box.h, 0, 0, preview.width, preview.height);
+    // Hard alpha: every pixel is either fully there or not, like pixel art.
+    const px = g.getImageData(0, 0, preview.width, preview.height);
+    for (let i = 3; i < px.data.length; i += 4) px.data[i] = px.data[i] > 110 ? 255 : 0;
+    g.putImageData(px, 0, 0);
     cutoutPng = preview.toDataURL('image/png');
     say('');
     previewWrap.hidden = false;
@@ -128,9 +130,6 @@ function drawSmall(img, max) {
 async function downscale(file, max) {
   const c = drawSmall(await blobToImage(file), max);
   return new Promise((res) => c.toBlob(res, 'image/jpeg', 0.92));
-}
-async function downscaleToDataUrl(file, max, q) {
-  return drawSmall(await blobToImage(file), max).toDataURL('image/jpeg', q);
 }
 function blobToImage(blob) {
   return new Promise((res, rej) => {

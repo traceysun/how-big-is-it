@@ -200,6 +200,9 @@ function startRound() {
     // A photo cut-out: a flat card that always faces the camera, 1 unit tall.
     new THREE.TextureLoader().load(current.image, (tex) => {
       tex.colorSpace = THREE.SRGBColorSpace;
+      tex.magFilter = THREE.NearestFilter;   // cut-outs are pixel art: keep them blocky
+      tex.minFilter = THREE.NearestFilter;
+      tex.generateMipmaps = false;
       const aspect = tex.image.width / tex.image.height;
       const card = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, alphaTest: 0.1 }));
       card.center.set(0.5, 0);
