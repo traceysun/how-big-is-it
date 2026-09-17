@@ -1,0 +1,8 @@
+# Only needed if you deploy with the wrangler CLI instead of the dashboard.
+name = "how-big-is-it-scores"
+main = "worker.js"
+compatibility_date = "2026-09-01"
+
+[[kv_namespaces]]
+binding = "SCORES"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"

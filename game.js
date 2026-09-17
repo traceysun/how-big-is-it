@@ -67,25 +67,45 @@ const nextBtn = document.getElementById('next');
 const bannerTrack = document.getElementById('banner-track');
 
 // ---------- Banner ----------
-// Best score today, remembered in this browser. (A shared, all-players top score would need a server.)
+// Best score today across all players, kept by a tiny Cloudflare Worker (see worker/).
+// If the worker is unreachable, fall back to the best score in this browser.
+const SCORE_API = '';   // e.g. 'https://how-big-is-it-scores.<you>.workers.dev'
 const todayKey = `best-${new Date().toISOString().slice(0, 10)}`;
-function bestToday() {
+let bannerBest = null;
+
+function localBest() {
   try { return localStorage.getItem(todayKey); } catch { return null; }
 }
-function recordScore(score) {
-  try {
-    const prev = Number(bestToday() ?? -1);
-    if (score > prev) localStorage.setItem(todayKey, String(score));
-  } catch {}
-  renderBanner();
+function rememberLocal(score) {
+  try { if (score > Number(localBest() ?? -1)) localStorage.setItem(todayKey, String(score)); } catch {}
+}
+async function fetchBest() {
+  if (!SCORE_API) return null;
+  const r = await fetch(`${SCORE_API}/top`);
+  if (!r.ok) throw new Error(r.statusText);
+  return (await r.json()).best;
+}
+async function submitBest(score) {
+  if (!SCORE_API) return null;
+  const r = await fetch(`${SCORE_API}/score`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ score }),
+  });
+  if (!r.ok) throw new Error(r.statusText);
+  return (await r.json()).best;
 }
 function renderBanner() {
-  const best = bestToday();
+  const best = bannerBest ?? localBest();
   const text = `welcome to how_big_is_it, the top score today was ${best ?? '__'}/100. thank you for stopping by, tracey xx`;
   // Two copies so the loop is seamless.
   bannerTrack.innerHTML = `<span>${text}</span><span>${text}</span>`;
 }
+function recordScore(score) {
+  rememberLocal(score);
+  renderBanner();
+  submitBest(score).then((best) => { if (best != null) { bannerBest = best; renderBanner(); } }).catch(() => {});
+}
 renderBanner();
+fetchBest().then((best) => { if (best != null) { bannerBest = best; renderBanner(); } }).catch(() => {});
 
 // ---------- Scene ----------
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });

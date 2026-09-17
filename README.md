@@ -37,3 +37,7 @@ Then open http://localhost:8000. Add `?o=okapi` to start on a specific object.
 1. Generate a GLB and drop it in `raw/`
 2. `python3 tools/decimate.py raw/thing.glb models/thing.glb` (needs `pip install trimesh open3d xatlas scipy pillow`)
 3. Add an entry to `objects.json` with its `height_m`
+
+## Top score of the day
+
+The banner's "top score today" comes from a tiny Cloudflare Worker with a KV namespace (`worker/worker.js`). Deploy it, put its URL in `SCORE_API` at the top of `game.js`, and every player's lock-in reports to it. Without it, the banner shows the best score in the visitor's own browser.
