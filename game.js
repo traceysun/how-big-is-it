@@ -69,7 +69,7 @@ const bannerTrack = document.getElementById('banner-track');
 // ---------- Banner ----------
 // Best score today across all players, kept by a tiny Cloudflare Worker (see worker/).
 // If the worker is unreachable, fall back to the best score in this browser.
-const SCORE_API = '';   // e.g. 'https://how-big-is-it-scores.<you>.workers.dev'
+const SCORE_API = 'https://how-big-is-it-scores.suntracey.workers.dev';
 const todayKey = `best-${new Date().toISOString().slice(0, 10)}`;
 let bannerBest = null;
 
