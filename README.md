@@ -1,8 +1,8 @@
-# sizing-game
+# how big is it?
 
 How big is it? A browser game about scale.
 
-**Play it: https://traceysun.github.io/sizing-game/**
+**Play it: https://traceysun.github.io/how-big-is-it/**
 
 You're shown a 3D model of a random, obscure-but-real object or animal. Spin it around, then drag the person next to it until they look the right size relative to the object. Lock in your guess — each object is worth up to 100 points depending on how close you got to its true height. A game is 5 objects, so your total is out of 500.
 
