@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>add your object</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=9">
+</head>
+<body class="page">
+  <header>
+    <h1>add your object</h1>
+    <a href="./" class="link">← back to the game</a>
+  </header>
+
+  <main class="form">
+    <p class="muted">take a photo of one thing against any background. we'll cut it out and, once approved, it joins the lineup for everyone to guess.</p>
+
+    <label class="file">
+      <input id="photo" type="file" accept="image/*" capture="environment">
+      <span>📷 take or choose a photo</span>
+    </label>
+
+    <div id="status" class="muted" hidden></div>
+    <div id="preview-wrap" hidden>
+      <canvas id="preview"></canvas>
+    </div>
+
+    <form id="details" hidden>
+      <label>what is it?<input id="name" maxlength="60" placeholder="e.g. my grandmother's teapot" required></label>
+      <label>how tall is it, really?
+        <span class="row"><input id="height" type="number" step="any" min="0.001" max="999" placeholder="30" required><select id="unit"><option value="0.01">cm</option><option value="1">m</option><option value="0.0254">inches</option></select></span>
+      </label>
+      <label>a fact about it (optional)<input id="fact" maxlength="200" placeholder="shown after people guess"></label>
+      <button id="submit" type="submit">submit for approval</button>
+    </form>
+
+    <div id="done" hidden>
+      <p><b>sent!</b> tracey will take a look, and once approved it shows up in the game.</p>
+      <button id="again" type="button">add another</button>
+    </div>
+  </main>
+
+  <script type="module" src="add.js?v=1"></script>
+</body>
+</html>

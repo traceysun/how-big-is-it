@@ -176,6 +176,15 @@ function updateGuessLabel() {} // the guess stays hidden until lock-in
 async function loadObjects() {
   const res = await fetch('objects.json', { cache: 'no-cache' });
   objects = await res.json();
+  // Photo cut-outs people have added (approved ones only). Skip silently if the worker is down.
+  try {
+    const r = await fetch(`${SCORE_API}/objects?t=${Date.now()}`, { cache: 'no-store' });
+    if (r.ok) {
+      for (const o of await r.json()) {
+        objects.push({ name: o.name, height_m: o.height_m, fact: o.fact, file: `community-${o.id}`, image: `${SCORE_API}${o.image}` });
+      }
+    }
+  } catch {}
   order = objects.map((_, i) => i).sort(() => Math.random() - 0.5);
   // ?o=okapi starts on a specific object (handy for testing / sharing).
   const want = new URLSearchParams(location.search).get('o');
@@ -197,35 +206,49 @@ function startRound() {
 
   if (model) { scene.remove(model); model = null; }
 
+  const fail = (err) => { console.error(err); loadingEl.textContent = `couldn't load ${current.name}`; };
+  if (current.image) {
+    // A photo cut-out: a flat card that always faces the camera, 1 unit tall.
+    new THREE.TextureLoader().load(current.image, (tex) => {
+      tex.colorSpace = THREE.SRGBColorSpace;
+      const aspect = tex.image.width / tex.image.height;
+      const card = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, alphaTest: 0.1 }));
+      card.center.set(0.5, 0);
+      card.scale.set(aspect, 1, 1);
+      showModel(card, new THREE.Box3(new THREE.Vector3(-aspect / 2, 0, -0.05), new THREE.Vector3(aspect / 2, 1, 0.05)), aspect);
+    }, undefined, fail);
+    return;
+  }
   loader.load(`models/${current.file}`, (gltf) => {
-    model = gltf.scene;
+    const m = gltf.scene;
     if (current.rotation) {
       const [x, y, z] = current.rotation;
-      model.rotation.set(THREE.MathUtils.degToRad(x), THREE.MathUtils.degToRad(y), THREE.MathUtils.degToRad(z));
+      m.rotation.set(THREE.MathUtils.degToRad(x), THREE.MathUtils.degToRad(y), THREE.MathUtils.degToRad(z));
     }
-    model.updateMatrixWorld(true);
+    m.updateMatrixWorld(true);
 
     // Normalise: 1 unit tall, feet on the floor, centred on the origin.
-    const box = new THREE.Box3().setFromObject(model);
+    const box = new THREE.Box3().setFromObject(m);
     const size = box.getSize(new THREE.Vector3());
-    const s = 1 / size.y;
-    model.scale.setScalar(s);
-    model.updateMatrixWorld(true);
-    const box2 = new THREE.Box3().setFromObject(model);
+    m.scale.setScalar(1 / size.y);
+    m.updateMatrixWorld(true);
+    const box2 = new THREE.Box3().setFromObject(m);
     const c = box2.getCenter(new THREE.Vector3());
-    model.position.set(-c.x, -box2.min.y, -c.z);
-    modelWidth = Math.hypot(box2.max.x - box2.min.x, box2.max.z - box2.min.z); // footprint diagonal: the camera views it at an angle
-    model.updateMatrixWorld(true);
-    modelBox = new THREE.Box3().setFromObject(model);
+    m.position.set(-c.x, -box2.min.y, -c.z);
+    m.updateMatrixWorld(true);
+    // footprint diagonal: the camera views it at an angle
+    showModel(m, new THREE.Box3().setFromObject(m), Math.hypot(box2.max.x - box2.min.x, box2.max.z - box2.min.z));
+  }, undefined, fail);
+}
 
-    scene.add(model);
-    loadingEl.hidden = true;
-    controls.reset();
-    camera.position.set(3, 2, 5);
-  }, undefined, (err) => {
-    console.error(err);
-    loadingEl.textContent = `Couldn't load ${current.file}`;
-  });
+function showModel(obj, box, width) {
+  model = obj;
+  modelBox = box;
+  modelWidth = width;
+  scene.add(model);
+  loadingEl.hidden = true;
+  controls.reset();
+  camera.position.set(3, 2, 5);
 }
 
 // ---------- Scoring ----------

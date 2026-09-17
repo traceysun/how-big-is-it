@@ -46,6 +46,9 @@ header {
 }
 h1 { margin: 0; font-size: 26px; font-weight: 500; }
 #round { font-size: 14px; color: var(--faint); }
+header { gap: 14px; }
+h1 { flex: 1; }
+#round, #add-link { white-space: nowrap; }
 
 #stage { position: relative; flex: 1; min-height: 0; }
 #view { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
@@ -100,3 +103,32 @@ button:hover { background: var(--ink); color: var(--paper); }
 #controls[hidden] { display: none; }
 #guess[hidden] { display: none; }
 #hint[hidden] { display: none; }
+
+/* ---- add / admin pages ---- */
+.page { height: auto; min-height: 100%; }
+.page header { padding-bottom: 8px; }
+.link { color: var(--faint); text-decoration: none; font-size: 14px; }
+.link:hover { color: var(--ink); }
+.muted { color: var(--faint); font-size: 14px; line-height: 1.5; }
+.form { padding: 8px 20px 40px; max-width: 520px; display: flex; flex-direction: column; gap: 16px; }
+.form label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.form input, .form select {
+  font: inherit; font-size: 16px; padding: 8px 10px; margin: 3px;
+  background: var(--paper); color: var(--ink); border: 0;
+  box-shadow: 3px 0 0 0 var(--ink), -3px 0 0 0 var(--ink), 0 3px 0 0 var(--ink), 0 -3px 0 0 var(--ink);
+}
+.form .row { display: flex; gap: 12px; align-items: center; }
+.form .row input { flex: 1; min-width: 0; }
+.file input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.file span {
+  display: inline-block; padding: 10px 18px; margin: 3px; cursor: pointer; font-size: 16px;
+  background: #ffe600; color: #000;
+  box-shadow: 3px 0 0 0 var(--ink), -3px 0 0 0 var(--ink), 0 3px 0 0 var(--ink), 0 -3px 0 0 var(--ink);
+}
+#preview-wrap { display: flex; justify-content: center; padding: 12px; background: var(--rule); }
+#preview { max-width: 100%; max-height: 320px; width: auto; height: auto; }
+#details { display: flex; flex-direction: column; gap: 16px; }
+#details[hidden], #done[hidden], #preview-wrap[hidden], #status[hidden] { display: none; }
+.card { display: flex; flex-direction: column; gap: 10px; padding: 12px 0 16px; border-bottom: 3px dotted var(--rule); }
+.card img { max-height: 200px; width: auto; align-self: flex-start; background: var(--rule); }
+.card .row { display: flex; gap: 12px; }

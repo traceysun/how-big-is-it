@@ -41,3 +41,7 @@ Then open http://localhost:8000. Add `?o=okapi` to start on a specific object.
 ## Top score of the day
 
 The banner's "top score today" comes from a tiny Cloudflare Worker with a KV namespace (`worker/worker.js`). Deploy it, put its URL in `SCORE_API` at the top of `game.js`, and every player's lock-in reports to it. Without it, the banner shows the best score in the visitor's own browser.
+
+## Add your own object
+
+`add.html` lets anyone photograph a thing; the browser cuts the object out (`@imgly/background-removal`, runs locally, first use downloads a ~40 MB model), they enter its real height, and it's sent to the worker as *pending*. `admin.html` (needs the worker's `ADMIN_KEY` secret) approves or rejects. Approved cut-outs are served from the worker and mixed into the lineup as flat cards.
