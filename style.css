@@ -108,8 +108,11 @@ button {
 }
 button:hover { background: var(--ink); color: var(--paper); }
 
-#result { display: flex; flex-direction: column; gap: 6px; }
-#result[hidden] { display: none; }
+#result, #gameover { display: flex; flex-direction: column; gap: 6px; }
+#result[hidden], #gameover[hidden] { display: none; }
+#final { font-size: 34px; }
+#final-detail { font-size: 16px; }
+#gameover button { align-self: flex-end; margin-top: 6px; }
 #score { font-size: 34px; }
 #detail { font-size: 16px; }
 #fact { font-size: 14px; color: var(--faint); max-width: 60ch; }

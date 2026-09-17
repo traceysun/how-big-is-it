@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 const HUMAN_M = 1.7;        // reference person height in metres
+const ROUNDS = 5;           // objects per game; each is worth 20, so a game is out of 100
 
 // 14 x 39 pixel person. '#' is ink.
 const HUMAN_PX = [
@@ -63,6 +64,10 @@ const scoreEl = document.getElementById('score');
 const detailEl = document.getElementById('detail');
 const factEl = document.getElementById('fact');
 const nextBtn = document.getElementById('next');
+const gameoverEl = document.getElementById('gameover');
+const finalEl = document.getElementById('final');
+const finalDetailEl = document.getElementById('final-detail');
+const againBtn = document.getElementById('again');
 const bannerTrack = document.getElementById('banner-track');
 
 // ---------- Banner ----------
@@ -186,8 +191,9 @@ function startRound() {
   current = objects[order[round % order.length]];
   locked = false;
   nameEl.textContent = current.name;
-  roundEl.textContent = round === 0 ? 'round 1' : `round ${round + 1} · ${total} pts`;
+  roundEl.textContent = round === 0 ? `round 1 of ${ROUNDS}` : `round ${round + 1} of ${ROUNDS} · ${total} pts`;
   resultEl.hidden = true;
+  gameoverEl.hidden = true;
   controlsEl.hidden = false;
   hintEl.hidden = false;
   setLogHeight(0);
@@ -250,18 +256,17 @@ function lockIn() {
   const guess = guessedHeight();
   const actual = current.height_m;
   const off = Math.abs(Math.log2(guess / actual));
-  const score = Math.round(100 * Math.max(0, 1 - off / 2)); // 2x off = 50, 4x off = 0
+  const score = Math.round(20 * Math.max(0, 1 - off / 2)); // out of 20: 2x off = 10, 4x off = 0
   total += score;
-  recordScore(score);
 
   const ratio = guess / actual;
   const way = ratio > 1 ? `${ratio.toFixed(ratio > 10 ? 0 : 1)}× too big` : `${(1 / ratio).toFixed(1 / ratio > 10 ? 0 : 1)}× too small`;
-  scoreEl.textContent = `${score} / 100`;
+  scoreEl.textContent = `${score} / 20`;
   detailEl.textContent = off < 0.05
     ? `Spot on — the real thing is about ${fmt(actual)} tall.`
     : `You said ${fmt(guess)}. The real thing is about ${fmt(actual)} tall — your guess was ${way}.`;
   factEl.textContent = current.fact || '';
-  roundEl.textContent = `round ${round + 1} · ${total} pts`;
+  roundEl.textContent = `round ${round + 1} of ${ROUNDS} · ${total} pts`;
 
   // Snap the person to the true scale so the reveal is visual too.
   setLogHeight(Math.log10(actual));
@@ -271,15 +276,39 @@ function lockIn() {
 }
 
 function nextRound() {
+  if (round + 1 >= ROUNDS) { endGame(); return; }
   round += 1;
+  startRound();
+}
+
+function endGame() {
+  locked = true;
+  resultEl.hidden = true;
+  gameoverEl.hidden = false;
+  roundEl.textContent = 'game over';
+  finalEl.textContent = `${total} / 100`;
+  finalDetailEl.textContent =
+    total >= 90 ? 'you have an eye for this.' :
+    total >= 70 ? 'nicely judged.' :
+    total >= 40 ? 'not bad — sizes are hard.' : 'everything is bigger and smaller than it looks.';
+  recordScore(total);
+}
+
+function newGame() {
+  round = 0;
+  total = 0;
+  order = objects.map((_, i) => i).sort(() => Math.random() - 0.5);
+  gameoverEl.hidden = true;
   startRound();
 }
 
 // ---------- Input ----------
 lockBtn.addEventListener('click', lockIn);
 nextBtn.addEventListener('click', nextRound);
+againBtn.addEventListener('click', newGame);
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') { if (locked) nextRound(); else lockIn(); }
+  if (e.key !== 'Enter') return;
+  if (!gameoverEl.hidden) newGame(); else if (locked) nextRound(); else lockIn();
 });
 
 // Dragging on the person resizes it; dragging anywhere else orbits (OrbitControls).
