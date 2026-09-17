@@ -87,13 +87,14 @@ controls.dampingFactor = 0.12;
 controls.maxPolarAngle = Math.PI / 2 + 0.15;
 
 // Ground: a soft disc so both figures visibly stand on the same floor.
-const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(2, 2),
-  new THREE.MeshBasicMaterial({ map: makeGroundTexture(), transparent: true })
+// A pixel stage: a low platform under both figures, tiled top and striped sides.
+const stageTop = makeStageTexture('top');
+const stageSide = makeStageTexture('side');
+const stage = new THREE.Mesh(
+  new THREE.BoxGeometry(1, 1, 1),
+  [stageSide, stageSide, stageTop, stageSide, stageSide, stageSide].map((map) => new THREE.MeshBasicMaterial({ map }))
 );
-ground.rotation.x = -Math.PI / 2;
-ground.position.y = -0.002;
-scene.add(ground);
+scene.add(stage);
 
 // The person is a billboard sprite so it always faces the camera as the scene spins.
 const human = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeHumanTexture(), transparent: true, alphaTest: 0.5 }));
@@ -288,21 +289,21 @@ function makeHumanTexture() {
   return pixelTexture(c);
 }
 
-function makeGroundTexture() {
-  const n = 96, r = n / 2;
+function makeStageTexture(kind) {
+  const n = 8;
   const c = document.createElement('canvas');
   c.width = n; c.height = n;
   const g = c.getContext('2d');
-  // Rasterise a disc pixel by pixel: 2px outline, light fill.
-  for (let y = 0; y < n; y++) {
-    for (let x = 0; x < n; x++) {
-      const d = Math.hypot(x + 0.5 - r, y + 0.5 - r);
-      if (d > r - 0.5) continue;
-      g.fillStyle = d > r - 2.5 ? '#9a9a9a' : '#f2f2f2';
-      g.fillRect(x, y, 1, 1);
-    }
+  if (kind === 'top') {
+    g.fillStyle = '#ececec'; g.fillRect(0, 0, n, n);       // tile
+    g.fillStyle = '#c8c8c8'; g.fillRect(0, 0, n, 1); g.fillRect(0, 0, 1, n); // grout
+  } else {
+    g.fillStyle = '#b4b4b4'; g.fillRect(0, 0, n, n);
+    g.fillStyle = '#8c8c8c'; g.fillRect(0, 0, n, 1); g.fillRect(0, 4, n, 1);  // stripes
   }
-  return pixelTexture(c);
+  const tex = pixelTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  return tex;
 }
 
 function resize() {
@@ -321,8 +322,18 @@ function layout() {
   const gap = 0.12 * Math.max(1, hu);
   const hx = modelWidth / 2 + gap + humanW / 2;
   human.position.set(hx, 0, 0);
-  ground.scale.setScalar(Math.max(modelWidth, hx + humanW / 2) * 1.1);
-  controls.target.set(hx / 2, Math.max(1, hu) * 0.45, 0);
+
+  const big = Math.max(1, hu);
+  const w = (modelWidth / 2 + hx + humanW / 2) * 1.25;   // span both figures with a margin
+  const d = Math.max(modelWidth, humanW) * 1.6;
+  const h = 0.08 * big;
+  stage.scale.set(w, h, d);
+  stage.position.set((hx + humanW / 2 - modelWidth / 2) / 2, -h / 2, 0);
+  const tile = 0.2 * big;                                 // tile size scales with the scene
+  stageTop.repeat.set(Math.max(1, Math.round(w / tile)), Math.max(1, Math.round(d / tile)));
+  stageSide.repeat.set(Math.max(1, Math.round(w / tile)), 1);
+
+  controls.target.set(hx / 2, big * 0.45, 0);
 }
 
 // Size the orthographic frustum so the object's box and the person are always fully on screen,
@@ -345,6 +356,12 @@ function fitCamera() {
   _corner.copy(human.position).applyMatrix4(inv);
   const hw = human.scale.x / 2, hh = human.scale.y;
   add(_corner.x - hw, _corner.y); add(_corner.x + hw, _corner.y + hh);
+  // The stage too, so its edges aren't clipped.
+  for (let i = 0; i < 8; i++) {
+    _corner.set(i & 1 ? 0.5 : -0.5, i & 2 ? 0.5 : -0.5, i & 4 ? 0.5 : -0.5);
+    stage.localToWorld(_corner).applyMatrix4(inv);
+    add(_corner.x, _corner.y);
+  }
 
   const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
   const margin = 1.15;

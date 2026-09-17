@@ -55,6 +55,9 @@ footer::before {
   background: repeating-linear-gradient(90deg, var(--ink) 0 3px, transparent 3px 9px);
 }
 #controls { display: flex; justify-content: flex-end; }
+#lock { padding: 0; margin: 0; background: none; box-shadow: none; line-height: 0; }
+#lock svg { display: block; }
+#lock:hover { background: none; filter: brightness(1.12); }
 button {
   font: inherit; font-size: 16px;
   margin: 3px;
