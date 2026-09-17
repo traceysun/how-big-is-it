@@ -81,7 +81,7 @@ function rememberLocal(score) {
 }
 async function fetchBest() {
   if (!SCORE_API) return null;
-  const r = await fetch(`${SCORE_API}/top`);
+  const r = await fetch(`${SCORE_API}/top?t=${Date.now()}`, { cache: 'no-store' });
   if (!r.ok) throw new Error(r.statusText);
   return (await r.json()).best;
 }
