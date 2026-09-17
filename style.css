@@ -46,9 +46,16 @@ header {
 }
 h1 { margin: 0; font-size: 26px; font-weight: 500; }
 #round { font-size: 14px; color: var(--faint); }
-header { gap: 14px; }
-h1 { flex: 1; }
+header { gap: 14px; flex-wrap: wrap; }
+h1 { flex: 1 1 auto; }
 #round, #add-link { white-space: nowrap; }
+#add-link {
+  display: inline-block; padding: 6px 12px; margin: 3px;
+  font-size: 14px; text-decoration: none;
+  color: #e3001b; background: var(--paper);
+  box-shadow: 3px 0 0 0 #e3001b, -3px 0 0 0 #e3001b, 0 3px 0 0 #e3001b, 0 -3px 0 0 #e3001b;
+}
+#add-link:hover { background: #e3001b; color: var(--paper); }
 
 #stage { position: relative; flex: 1; min-height: 0; }
 #view { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
