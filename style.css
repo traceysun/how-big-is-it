@@ -11,48 +11,58 @@ body {
   flex-direction: column;
   background: var(--paper);
   color: var(--ink);
-  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  font-family: "Pixelify Sans", "Courier New", monospace;
   user-select: none;
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: unset;
 }
 
 header {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  padding: 22px 28px 0;
+  padding: 18px 20px 0;
 }
-h1 { margin: 0; font-size: 28px; font-weight: 400; letter-spacing: 0.01em; }
-#round { font-size: 14px; color: var(--faint); font-style: italic; }
+h1 { margin: 0; font-size: 26px; font-weight: 500; }
+#round { font-size: 14px; color: var(--faint); }
 
 #stage { position: relative; flex: 1; min-height: 0; }
 #view { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
 #view.resizing { cursor: ns-resize; }
 #guess {
-  position: absolute; top: 14px; left: 28px;
-  font-size: 16px; font-style: italic; color: var(--faint); pointer-events: none;
+  position: absolute; top: 12px; left: 20px;
+  font-size: 16px; color: var(--faint); pointer-events: none;
 }
-#guess b { font-style: normal; font-weight: 400; color: var(--ink); }
+#guess b { font-weight: 500; color: var(--ink); }
 #hint {
-  position: absolute; bottom: 12px; left: 0; right: 0;
-  text-align: center; font-size: 13px; font-style: italic; color: var(--faint); pointer-events: none;
+  position: absolute; bottom: 12px; left: 16px; right: 16px;
+  text-align: center; font-size: 13px; line-height: 1.4; color: var(--faint); pointer-events: none;
 }
 #loading {
   position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
-  background: var(--paper); font-style: italic; color: var(--faint);
+  background: var(--paper); color: var(--faint);
 }
 #loading[hidden] { display: none; }
 
 footer {
-  border-top: 1px solid var(--rule);
-  padding: 18px 28px 24px;
+  position: relative;
+  padding: 16px 20px 22px;
+}
+/* dotted pixel rule */
+footer::before {
+  content: ''; position: absolute; top: 0; left: 20px; right: 20px; height: 3px;
+  background: repeating-linear-gradient(90deg, var(--ink) 0 3px, transparent 3px 9px);
 }
 #controls { display: flex; justify-content: flex-end; }
 button {
   font: inherit; font-size: 16px;
+  margin: 3px;
   padding: 8px 18px;
-  background: none; color: var(--ink);
-  border: 1px solid var(--ink); border-radius: 999px;
+  background: var(--paper); color: var(--ink);
+  border: 0; border-radius: 0;
+  /* notched-corner pixel border */
+  box-shadow: 3px 0 0 0 var(--ink), -3px 0 0 0 var(--ink), 0 3px 0 0 var(--ink), 0 -3px 0 0 var(--ink);
   cursor: pointer;
 }
 button:hover { background: var(--ink); color: var(--paper); }
@@ -61,7 +71,7 @@ button:hover { background: var(--ink); color: var(--paper); }
 #result[hidden] { display: none; }
 #score { font-size: 34px; }
 #detail { font-size: 16px; }
-#fact { font-size: 14px; font-style: italic; color: var(--faint); max-width: 60ch; }
+#fact { font-size: 14px; color: var(--faint); max-width: 60ch; }
 #result button { align-self: flex-end; margin-top: 6px; }
 #controls[hidden] { display: none; }
 #guess[hidden] { display: none; }

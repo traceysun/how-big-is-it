@@ -3,7 +3,49 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 const HUMAN_M = 1.7;        // reference person height in metres
-const MAX_FRAME = 10;       // how many object-heights the camera will zoom out to fit the person
+
+// 14 x 39 pixel person. '#' is ink.
+const HUMAN_PX = [
+  '.....####.....',
+  '....######....',
+  '...########...',
+  '...########...',
+  '...########...',
+  '...########...',
+  '....######....',
+  '.....####.....',
+  '......##......',
+  '....######....',
+  '...########...',
+  '..##.####.##..',
+  '..##.####.##..',
+  '..##.####.##..',
+  '..##.####.##..',
+  '..##.####.##..',
+  '..##.####.##..',
+  '..##.####.##..',
+  '..##.####.##..',
+  '..##.####.##..',
+  '..##.####.##..',
+  '.....####.....',
+  '.....####.....',
+  '.....####.....',
+  '....##..##....',
+  '....##..##....',
+  '....##..##....',
+  '....##..##....',
+  '....##..##....',
+  '....##..##....',
+  '....##..##....',
+  '....##..##....',
+  '....##..##....',
+  '....##..##....',
+  '....##..##....',
+  '....##..##....',
+  '....##..##....',
+  '...###..###...',
+  '...###..###...',
+];
 
 // ---------- DOM ----------
 const canvas = document.getElementById('view');
@@ -45,27 +87,23 @@ controls.dampingFactor = 0.12;
 controls.maxPolarAngle = Math.PI / 2 + 0.15;
 
 // Ground: a soft disc so both figures visibly stand on the same floor.
-const ground = new THREE.Group();
-ground.add(new THREE.Mesh(
-  new THREE.CircleGeometry(1, 96),
-  new THREE.MeshBasicMaterial({ color: 0xf2f2f2 })
-));
-ground.add(new THREE.Mesh(
-  new THREE.RingGeometry(0.985, 1, 96),
-  new THREE.MeshBasicMaterial({ color: 0x9a9a9a })
-));
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(2, 2),
+  new THREE.MeshBasicMaterial({ map: makeGroundTexture(), transparent: true })
+);
 ground.rotation.x = -Math.PI / 2;
 ground.position.y = -0.002;
 scene.add(ground);
 
 // The person is a billboard sprite so it always faces the camera as the scene spins.
-const human = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeHumanTexture(), transparent: true }));
+const human = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeHumanTexture(), transparent: true, alphaTest: 0.5 }));
 human.center.set(0.5, 0); // scale from the feet
 scene.add(human);
 
 const loader = new GLTFLoader();
 let model = null;           // current object, normalised to 1 unit tall
 let modelWidth = 1;         // footprint width in units (x/z extent)
+let modelBox = new THREE.Box3(new THREE.Vector3(-0.5, 0, -0.5), new THREE.Vector3(0.5, 1, 0.5));
 
 // ---------- Game state ----------
 let objects = [];
@@ -134,6 +172,8 @@ function startRound() {
     const c = box2.getCenter(new THREE.Vector3());
     model.position.set(-c.x, -box2.min.y, -c.z);
     modelWidth = Math.hypot(box2.max.x - box2.min.x, box2.max.z - box2.min.z); // footprint diagonal: the camera views it at an angle
+    model.updateMatrixWorld(true);
+    modelBox = new THREE.Box3().setFromObject(model);
 
     scene.add(model);
     loadingEl.hidden = true;
@@ -226,35 +266,43 @@ canvas.addEventListener('pointerup', endDrag);
 canvas.addEventListener('pointercancel', endDrag);
 
 // ---------- Layout & render ----------
+
+function pixelTexture(canvas) {
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.magFilter = THREE.NearestFilter;   // keep the pixels crisp at any size
+  tex.minFilter = THREE.NearestFilter;
+  tex.generateMipmaps = false;
+  return tex;
+}
+
 function makeHumanTexture() {
-  const w = 256, h = 726; // 1 : 2.84 → roughly a 0.6 m wide, 1.7 m tall silhouette
+  const w = HUMAN_PX[0].length, h = HUMAN_PX.length;
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
   const g = c.getContext('2d');
-  g.strokeStyle = '#1a1a1a';
-  g.lineWidth = 9;
-  g.lineCap = 'round';
-  g.lineJoin = 'round';
-  const cx = w / 2;
-  // head
-  g.beginPath(); g.arc(cx, 58, 46, 0, Math.PI * 2); g.stroke();
-  // body
-  line(g, cx, 104, cx, 400);
-  // arms
-  line(g, cx, 170, cx - 92, 330);
-  line(g, cx, 170, cx + 92, 330);
-  // legs
-  line(g, cx, 400, cx - 70, 716);
-  line(g, cx, 400, cx + 70, 716);
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
+  g.fillStyle = '#1a1a1a';
+  HUMAN_PX.forEach((row, y) => {
+    [...row].forEach((ch, x) => { if (ch === '#') g.fillRect(x, y, 1, 1); });
+  });
+  return pixelTexture(c);
 }
-function line(g, x0, y0, x1, y1) {
-  g.beginPath();
-  g.moveTo(x0, y0);
-  g.lineTo(x1, y1);
-  g.stroke();
+
+function makeGroundTexture() {
+  const n = 96, r = n / 2;
+  const c = document.createElement('canvas');
+  c.width = n; c.height = n;
+  const g = c.getContext('2d');
+  // Rasterise a disc pixel by pixel: 2px outline, light fill.
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
+      const d = Math.hypot(x + 0.5 - r, y + 0.5 - r);
+      if (d > r - 0.5) continue;
+      g.fillStyle = d > r - 2.5 ? '#9a9a9a' : '#f2f2f2';
+      g.fillRect(x, y, 1, 1);
+    }
+  }
+  return pixelTexture(c);
 }
 
 function resize() {
@@ -266,31 +314,54 @@ function resize() {
 
 function layout() {
   const hu = humanUnits();
-  const humanW = hu * (256 / 726);
+  const humanW = hu * (HUMAN_PX[0].length / HUMAN_PX.length);
   human.scale.set(humanW, hu, 1);
 
   // Person stands to the right of the object with a gap proportional to the bigger of the two.
   const gap = 0.12 * Math.max(1, hu);
   const hx = modelWidth / 2 + gap + humanW / 2;
   human.position.set(hx, 0, 0);
+  ground.scale.setScalar(Math.max(modelWidth, hx + humanW / 2) * 1.1);
+  controls.target.set(hx / 2, Math.max(1, hu) * 0.45, 0);
+}
 
-  const frame = Math.min(Math.max(1, hu), MAX_FRAME);
-  const left = -modelWidth / 2, right = hx + humanW / 2;
-  ground.scale.setScalar(Math.max(modelWidth, right) * 1.1);
+// Size the orthographic frustum so the object's box and the person are always fully on screen,
+// whatever the viewport shape or how the scene has been spun.
+const _corner = new THREE.Vector3();
+function fitCamera() {
+  camera.updateMatrixWorld();
+  const inv = camera.matrixWorldInverse;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  const add = (x, y) => {
+    minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+  };
+  for (let i = 0; i < 8; i++) {
+    _corner.set(i & 1 ? modelBox.max.x : modelBox.min.x, i & 2 ? modelBox.max.y : modelBox.min.y, i & 4 ? modelBox.max.z : modelBox.min.z);
+    _corner.applyMatrix4(inv);
+    add(_corner.x, _corner.y);
+  }
+  // The person is a billboard, so in camera space it is an upright rectangle.
+  _corner.copy(human.position).applyMatrix4(inv);
+  const hw = human.scale.x / 2, hh = human.scale.y;
+  add(_corner.x - hw, _corner.y); add(_corner.x + hw, _corner.y + hh);
 
-  // Keep both figures framed, vertically and horizontally. Orthographic, so zoom is just the frustum size.
-  const aspect = canvas.clientWidth / canvas.clientHeight;
-  const half = Math.max(frame * 0.62, ((right - left) / 2) * 1.15 / aspect);
-  camera.top = half; camera.bottom = -half;
-  camera.left = -half * aspect; camera.right = half * aspect;
+  const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
+  const margin = 1.15;
+  let halfW = ((maxX - minX) / 2) * margin;
+  let halfH = ((maxY - minY) / 2) * margin;
+  if (halfW / halfH < aspect) halfW = halfH * aspect; else halfH = halfW / aspect;
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+  camera.left = cx - halfW; camera.right = cx + halfW;
+  camera.top = cy + halfH; camera.bottom = cy - halfH;
   camera.updateProjectionMatrix();
-  controls.target.set((left + right) / 2, frame * 0.42, 0);
 }
 
 function tick() {
   resize();
   layout();
   controls.update();
+  fitCamera();
   renderer.render(scene, camera);
   requestAnimationFrame(tick);
 }
