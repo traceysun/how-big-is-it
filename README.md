@@ -1,4 +1,4 @@
-# size-game-
+# sizing-game
 
 How big is it? A browser game about scale.
 
