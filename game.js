@@ -1,65 +1,287 @@
-// Minimal canvas game loop: move the player, collect dots, score points.
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const HUMAN_M = 1.7;        // reference person height in metres
+const MAX_FRAME = 10;       // how many object-heights the camera will zoom out to fit the person
+
+// ---------- DOM ----------
+const canvas = document.getElementById('view');
+const nameEl = document.getElementById('object-name');
+const roundEl = document.getElementById('round');
+const loadingEl = document.getElementById('loading');
+const slider = document.getElementById('size');
+const guessEl = document.getElementById('guess');
+const lockBtn = document.getElementById('lock');
+const controlsEl = document.getElementById('controls');
+const resultEl = document.getElementById('result');
 const scoreEl = document.getElementById('score');
+const detailEl = document.getElementById('detail');
+const factEl = document.getElementById('fact');
+const nextBtn = document.getElementById('next');
 
-const player = { x: 320, y: 240, r: 12, speed: 220 };
-const keys = new Set();
-let dot = spawnDot();
-let score = 0;
-let last = performance.now();
+// ---------- Scene ----------
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-function spawnDot() {
-  const pad = 20;
-  return {
-    x: pad + Math.random() * (canvas.width - pad * 2),
-    y: pad + Math.random() * (canvas.height - pad * 2),
-    r: 8,
-  };
+const scene = new THREE.Scene();
+scene.add(new THREE.HemisphereLight(0xffffff, 0x444466, 1.6));
+const sun = new THREE.DirectionalLight(0xffffff, 1.4);
+sun.position.set(2, 4, 3);
+scene.add(sun);
+
+const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, -100, 100);
+camera.position.set(3, 2, 5);
+
+const controls = new OrbitControls(camera, canvas);
+controls.enableZoom = false;
+controls.enablePan = false;
+controls.enableDamping = true;
+controls.dampingFactor = 0.12;
+controls.maxPolarAngle = Math.PI / 2 + 0.15;
+
+// Ground: a soft disc so both figures visibly stand on the same floor.
+const ground = new THREE.Mesh(
+  new THREE.CircleGeometry(1, 64),
+  new THREE.MeshBasicMaterial({ color: 0x2a2f3a, transparent: true, opacity: 0.7 })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = -0.002;
+scene.add(ground);
+
+// The person is a billboard sprite so it always faces the camera as the scene spins.
+const human = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeHumanTexture(), transparent: true }));
+human.center.set(0.5, 0); // scale from the feet
+scene.add(human);
+
+const loader = new GLTFLoader();
+let model = null;           // current object, normalised to 1 unit tall
+let modelWidth = 1;         // footprint width in units (x/z extent)
+
+// ---------- Game state ----------
+let objects = [];
+let order = [];
+let round = 0;
+let total = 0;
+let current = null;
+let locked = false;
+
+// slider value = log10(guessed object height in metres)
+function guessedHeight() { return Math.pow(10, parseFloat(slider.value)); }
+function humanUnits() { return HUMAN_M / guessedHeight(); } // person height in object-units
+
+function fmt(m) {
+  if (m < 0.01) return `${(m * 1000).toPrecision(2)} mm`;
+  if (m < 1) return `${(m * 100).toPrecision(2)} cm`;
+  if (m < 10) return `${m.toFixed(1)} m`;
+  return `${Math.round(m)} m`;
 }
 
-window.addEventListener('keydown', (e) => keys.add(e.key.toLowerCase()));
-window.addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
+function updateGuessLabel() {
+  guessEl.innerHTML = `The object is <b>${fmt(guessedHeight())}</b> tall`;
+}
 
-function update(dt) {
-  let dx = 0, dy = 0;
-  if (keys.has('arrowleft') || keys.has('a')) dx -= 1;
-  if (keys.has('arrowright') || keys.has('d')) dx += 1;
-  if (keys.has('arrowup') || keys.has('w')) dy -= 1;
-  if (keys.has('arrowdown') || keys.has('s')) dy += 1;
-  if (dx && dy) { dx *= Math.SQRT1_2; dy *= Math.SQRT1_2; }
+// ---------- Loading ----------
+async function loadObjects() {
+  const res = await fetch('objects.json');
+  objects = await res.json();
+  order = objects.map((_, i) => i).sort(() => Math.random() - 0.5);
+  // ?o=okapi starts on a specific object (handy for testing / sharing).
+  const want = new URLSearchParams(location.search).get('o');
+  const wi = objects.findIndex((o) => o.file.startsWith(want));
+  if (want && wi >= 0) order = [wi, ...order.filter((i) => i !== wi)];
+  startRound();
+}
 
-  player.x = Math.max(player.r, Math.min(canvas.width - player.r, player.x + dx * player.speed * dt));
-  player.y = Math.max(player.r, Math.min(canvas.height - player.r, player.y + dy * player.speed * dt));
+function startRound() {
+  current = objects[order[round % order.length]];
+  locked = false;
+  nameEl.textContent = current.name;
+  roundEl.textContent = `Round ${round + 1} · Total ${total}`;
+  resultEl.hidden = true;
+  controlsEl.style.display = '';
+  slider.value = 0;
+  updateGuessLabel();
+  loadingEl.hidden = false;
 
-  const dist = Math.hypot(player.x - dot.x, player.y - dot.y);
-  if (dist < player.r + dot.r) {
-    score += 1;
-    scoreEl.textContent = `Score: ${score}`;
-    dot = spawnDot();
+  if (model) { scene.remove(model); model = null; }
+
+  loader.load(`models/${current.file}`, (gltf) => {
+    model = gltf.scene;
+    if (current.rotation) {
+      const [x, y, z] = current.rotation;
+      model.rotation.set(THREE.MathUtils.degToRad(x), THREE.MathUtils.degToRad(y), THREE.MathUtils.degToRad(z));
+    }
+    model.updateMatrixWorld(true);
+
+    // Normalise: 1 unit tall, feet on the floor, centred on the origin.
+    const box = new THREE.Box3().setFromObject(model);
+    const size = box.getSize(new THREE.Vector3());
+    const s = 1 / size.y;
+    model.scale.setScalar(s);
+    model.updateMatrixWorld(true);
+    const box2 = new THREE.Box3().setFromObject(model);
+    const c = box2.getCenter(new THREE.Vector3());
+    model.position.set(-c.x, -box2.min.y, -c.z);
+    modelWidth = Math.hypot(box2.max.x - box2.min.x, box2.max.z - box2.min.z); // footprint diagonal: the camera views it at an angle
+
+    scene.add(model);
+    loadingEl.hidden = true;
+    controls.reset();
+    camera.position.set(3, 2, 5);
+  }, undefined, (err) => {
+    console.error(err);
+    loadingEl.textContent = `Couldn't load ${current.file}`;
+  });
+}
+
+// ---------- Scoring ----------
+function lockIn() {
+  if (locked || !model) return;
+  locked = true;
+  const guess = guessedHeight();
+  const actual = current.height_m;
+  const off = Math.abs(Math.log2(guess / actual));
+  const score = Math.round(100 * Math.max(0, 1 - off / 2)); // 2x off = 50, 4x off = 0
+  total += score;
+
+  const ratio = guess / actual;
+  const way = ratio > 1 ? `${ratio.toFixed(ratio > 10 ? 0 : 1)}× too big` : `${(1 / ratio).toFixed(1 / ratio > 10 ? 0 : 1)}× too small`;
+  scoreEl.textContent = `${score} / 100`;
+  detailEl.textContent = off < 0.05
+    ? `Spot on — the real thing is about ${fmt(actual)} tall.`
+    : `You said ${fmt(guess)}. The real thing is about ${fmt(actual)} tall — your guess was ${way}.`;
+  factEl.textContent = current.fact || '';
+  roundEl.textContent = `Round ${round + 1} · Total ${total}`;
+
+  // Snap the person to the true scale so the reveal is visual too.
+  slider.value = Math.log10(actual);
+  controlsEl.style.display = 'none';
+  resultEl.hidden = false;
+}
+
+function nextRound() {
+  round += 1;
+  startRound();
+}
+
+// ---------- Input ----------
+slider.addEventListener('input', updateGuessLabel);
+lockBtn.addEventListener('click', lockIn);
+nextBtn.addEventListener('click', nextRound);
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { if (locked) nextRound(); else lockIn(); }
+});
+
+// Dragging on the person resizes it; dragging anywhere else orbits (OrbitControls).
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+let dragging = false;
+let dragStartY = 0;
+let dragStartVal = 0;
+
+function hitsHuman(e) {
+  const r = canvas.getBoundingClientRect();
+  pointer.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  raycaster.setFromCamera(pointer, camera);
+  return raycaster.intersectObject(human).length > 0;
+}
+
+canvas.addEventListener('pointerdown', (e) => {
+  if (locked || !hitsHuman(e)) return;
+  dragging = true;
+  dragStartY = e.clientY;
+  dragStartVal = parseFloat(slider.value);
+  controls.enabled = false;
+  canvas.classList.add('resizing');
+  canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener('pointermove', (e) => {
+  if (dragging) {
+    // Drag up = bigger person = smaller object. 250px per decade.
+    const v = dragStartVal + (e.clientY - dragStartY) / 250;
+    slider.value = Math.min(parseFloat(slider.max), Math.max(parseFloat(slider.min), v));
+    updateGuessLabel();
+  } else if (!locked) {
+    canvas.classList.toggle('resizing', hitsHuman(e));
+  }
+});
+function endDrag(e) {
+  if (!dragging) return;
+  dragging = false;
+  controls.enabled = true;
+  canvas.classList.remove('resizing');
+  try { canvas.releasePointerCapture(e.pointerId); } catch {}
+}
+canvas.addEventListener('pointerup', endDrag);
+canvas.addEventListener('pointercancel', endDrag);
+
+// ---------- Layout & render ----------
+function makeHumanTexture() {
+  const w = 256, h = 726; // 1 : 2.84 → roughly a 0.6 m wide, 1.7 m tall silhouette
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  g.fillStyle = '#f2b8a0';
+  const cx = w / 2;
+  // head
+  g.beginPath(); g.arc(cx, 60, 48, 0, Math.PI * 2); g.fill();
+  // torso
+  roundRect(g, cx - 62, 118, 124, 260, 40);
+  // arms
+  roundRect(g, cx - 118, 130, 46, 240, 23);
+  roundRect(g, cx + 72, 130, 46, 240, 23);
+  // legs
+  roundRect(g, cx - 60, 360, 54, 350, 27);
+  roundRect(g, cx + 6, 360, 54, 350, 27);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+function roundRect(g, x, y, w, h, r) {
+  g.beginPath();
+  g.roundRect(x, y, w, h, r);
+  g.fill();
+}
+
+function resize() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (canvas.width !== w * renderer.getPixelRatio() || canvas.height !== h * renderer.getPixelRatio()) {
+    renderer.setSize(w, h, false);
   }
 }
 
-function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+function layout() {
+  const hu = humanUnits();
+  const humanW = hu * (256 / 726);
+  human.scale.set(humanW, hu, 1);
 
-  ctx.fillStyle = '#f9e2af';
-  ctx.beginPath();
-  ctx.arc(dot.x, dot.y, dot.r, 0, Math.PI * 2);
-  ctx.fill();
+  // Person stands to the right of the object with a gap proportional to the bigger of the two.
+  const gap = 0.12 * Math.max(1, hu);
+  const hx = modelWidth / 2 + gap + humanW / 2;
+  human.position.set(hx, 0, 0);
 
-  ctx.fillStyle = '#89b4fa';
-  ctx.beginPath();
-  ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2);
-  ctx.fill();
+  const frame = Math.min(Math.max(1, hu), MAX_FRAME);
+  const left = -modelWidth / 2, right = hx + humanW / 2;
+  ground.scale.setScalar(Math.max(modelWidth, right) * 1.1);
+
+  // Keep both figures framed, vertically and horizontally. Orthographic, so zoom is just the frustum size.
+  const aspect = canvas.clientWidth / canvas.clientHeight;
+  const half = Math.max(frame * 0.62, ((right - left) / 2) * 1.15 / aspect);
+  camera.top = half; camera.bottom = -half;
+  camera.left = -half * aspect; camera.right = half * aspect;
+  camera.updateProjectionMatrix();
+  controls.target.set((left + right) / 2, frame * 0.42, 0);
 }
 
-function loop(now) {
-  const dt = Math.min((now - last) / 1000, 0.05);
-  last = now;
-  update(dt);
-  draw();
-  requestAnimationFrame(loop);
+function tick() {
+  resize();
+  layout();
+  controls.update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(tick);
 }
 
-requestAnimationFrame(loop);
+loadObjects();
+tick();

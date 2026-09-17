@@ -1,0 +1,18 @@
+[
+  { "name": "Shoebill stork", "file": "shoebill.glb", "height_m": 1.2,
+    "fact": "A shoebill stands about 1.2 m tall and can stay motionless for hours waiting for lungfish." },
+  { "name": "Pink fairy armadillo", "file": "armadillo.glb", "height_m": 0.05,
+    "fact": "The smallest armadillo: about 12 cm long and 5 cm tall. It lives in the sandy plains of central Argentina." },
+  { "name": "Okapi", "file": "okapi.glb", "height_m": 1.9,
+    "fact": "The giraffe's only living relative stands about 1.5 m at the shoulder and 1.9 m to the top of its head." },
+  { "name": "Moai statue", "file": "moai.glb", "height_m": 4.0,
+    "fact": "The average Easter Island moai is about 4 m tall and weighs 12 tonnes. The tallest ever erected is nearly 10 m." },
+  { "name": "Zamboni ice resurfacer", "file": "zamboni.glb", "height_m": 2.2,
+    "fact": "A full-size Zamboni is about 2.2 m tall, 4.5 m long, and tops out at 15 km/h." },
+  { "name": "Dodo", "file": "dodo.glb", "height_m": 1.0,
+    "fact": "The dodo stood about 1 m tall and weighed 10–18 kg. The last one was seen in 1662." },
+  { "name": "Trebuchet", "file": "trebuchet.glb", "height_m": 12,
+    "fact": "A large medieval counterweight trebuchet stood around 12 m tall and could hurl a 90 kg stone 300 m." },
+  { "name": "Tardigrade", "file": "tardigrade.glb", "height_m": 0.0003,
+    "fact": "Tardigrades are about 0.5 mm long and 0.3 mm tall. They survive vacuum, radiation, and being frozen for decades." }
+]
