@@ -29,8 +29,8 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const scene = new THREE.Scene();
-scene.add(new THREE.HemisphereLight(0xfff6e6, 0xbfb6a4, 2.0));
-const sun = new THREE.DirectionalLight(0xfff3dc, 1.0);
+scene.add(new THREE.HemisphereLight(0xffffff, 0xc8c8c8, 2.0));
+const sun = new THREE.DirectionalLight(0xffffff, 1.0);
 sun.position.set(2, 4, 3);
 scene.add(sun);
 
@@ -48,11 +48,11 @@ controls.maxPolarAngle = Math.PI / 2 + 0.15;
 const ground = new THREE.Group();
 ground.add(new THREE.Mesh(
   new THREE.CircleGeometry(1, 96),
-  new THREE.MeshBasicMaterial({ color: 0xe6dfcc })
+  new THREE.MeshBasicMaterial({ color: 0xf2f2f2 })
 ));
 ground.add(new THREE.Mesh(
   new THREE.RingGeometry(0.985, 1, 96),
-  new THREE.MeshBasicMaterial({ color: 0x8d8477 })
+  new THREE.MeshBasicMaterial({ color: 0x9a9a9a })
 ));
 ground.rotation.x = -Math.PI / 2;
 ground.position.y = -0.002;
@@ -231,7 +231,7 @@ function makeHumanTexture() {
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
   const g = c.getContext('2d');
-  g.strokeStyle = '#2a2620';
+  g.strokeStyle = '#1a1a1a';
   g.lineWidth = 9;
   g.lineCap = 'round';
   g.lineJoin = 'round';

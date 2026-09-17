@@ -1,8 +1,8 @@
 :root {
-  --paper: #f4eee0;
-  --ink: #2a2620;
-  --faint: #8d8477;
-  --rule: #d9d0bd;
+  --paper: #ffffff;
+  --ink: #1a1a1a;
+  --faint: #8a8a8a;
+  --rule: #e2e2e2;
 }
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
