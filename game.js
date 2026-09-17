@@ -64,6 +64,28 @@ const scoreEl = document.getElementById('score');
 const detailEl = document.getElementById('detail');
 const factEl = document.getElementById('fact');
 const nextBtn = document.getElementById('next');
+const bannerTrack = document.getElementById('banner-track');
+
+// ---------- Banner ----------
+// Best score today, remembered in this browser. (A shared, all-players top score would need a server.)
+const todayKey = `best-${new Date().toISOString().slice(0, 10)}`;
+function bestToday() {
+  try { return localStorage.getItem(todayKey); } catch { return null; }
+}
+function recordScore(score) {
+  try {
+    const prev = Number(bestToday() ?? -1);
+    if (score > prev) localStorage.setItem(todayKey, String(score));
+  } catch {}
+  renderBanner();
+}
+function renderBanner() {
+  const best = bestToday();
+  const text = `welcome to how_big_is_it, the top score today was ${best ?? '__'}/100. thank you for stopping by, tracey xx`;
+  // Two copies so the loop is seamless.
+  bannerTrack.innerHTML = `<span>${text}</span><span>${text}</span>`;
+}
+renderBanner();
 
 // ---------- Scene ----------
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
@@ -195,6 +217,7 @@ function lockIn() {
   const off = Math.abs(Math.log2(guess / actual));
   const score = Math.round(100 * Math.max(0, 1 - off / 2)); // 2x off = 50, 4x off = 0
   total += score;
+  recordScore(score);
 
   const ratio = guess / actual;
   const way = ratio > 1 ? `${ratio.toFixed(ratio > 10 ? 0 : 1)}× too big` : `${(1 / ratio).toFixed(1 / ratio > 10 ? 0 : 1)}× too small`;

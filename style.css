@@ -17,6 +17,27 @@ body {
   -moz-osx-font-smoothing: unset;
 }
 
+#banner {
+  overflow: hidden;
+  background: #ffe600;
+  color: #000;
+  font-size: 15px;
+  padding: 8px 0;
+  white-space: nowrap;
+}
+#banner-track {
+  display: inline-block;
+  animation: marquee 28s linear infinite;
+}
+#banner-track span { padding-right: 64px; }
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #banner-track { animation: none; }
+}
+
 header {
   display: flex;
   justify-content: space-between;
