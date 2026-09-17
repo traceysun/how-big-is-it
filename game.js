@@ -128,18 +128,7 @@ controls.dampingFactor = 0.12;
 controls.maxPolarAngle = Math.PI / 2 + 0.15;
 
 // Ground: a soft disc so both figures visibly stand on the same floor.
-// A pixel stage: a checkerboard of chunky blocks under both figures, so its edges are stepped
-// like pixel art from any angle.
-const MAX_BLOCKS = 4096;
-const stage = new THREE.InstancedMesh(
-  new THREE.BoxGeometry(1, 1, 1),
-  new THREE.MeshLambertMaterial(),
-  MAX_BLOCKS
-);
-const stageBox = new THREE.Box3();
-const STAGE_COLORS = [new THREE.Color('#f0f0f0'), new THREE.Color('#d6d6d6')];
-const _m = new THREE.Matrix4();
-scene.add(stage);
+
 
 // The person is a billboard sprite so it always faces the camera as the scene spins.
 const human = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeHumanTexture(), transparent: true, alphaTest: 0.5 }));
@@ -372,31 +361,6 @@ function layout() {
   human.position.set(hx, 0, 0);
 
   const big = Math.max(1, hu);
-  const w = (modelWidth / 2 + hx + humanW / 2) * 1.25;   // span both figures with a margin
-  const d = Math.max(modelWidth, humanW) * 1.6;
-  const cx = (hx + humanW / 2 - modelWidth / 2) / 2;
-
-  // Block size scales with the scene; coarsen if the grid would get too big.
-  let b = 0.16 * big;
-  let nx = Math.ceil(w / b), nz = Math.ceil(d / b);
-  while (nx * nz > MAX_BLOCKS) { b *= 1.5; nx = Math.ceil(w / b); nz = Math.ceil(d / b); }
-  const bh = 0.5 * b;
-  const x0 = cx - (nx * b) / 2 + b / 2, z0 = -(nz * b) / 2 + b / 2;
-  let i = 0;
-  for (let ix = 0; ix < nx; ix++) {
-    for (let iz = 0; iz < nz; iz++) {
-      _m.makeScale(b, bh, b).setPosition(x0 + ix * b, -bh / 2, z0 + iz * b);
-      stage.setMatrixAt(i, _m);
-      stage.setColorAt(i, STAGE_COLORS[(ix + iz) & 1]);
-      i++;
-    }
-  }
-  stage.count = i;
-  stage.instanceMatrix.needsUpdate = true;
-  stage.instanceColor.needsUpdate = true;
-  stageBox.min.set(x0 - b / 2, -bh, z0 - b / 2);
-  stageBox.max.set(x0 + (nx - 0.5) * b, 0, z0 + (nz - 0.5) * b);
-
   controls.target.set(hx / 2, big * 0.45, 0);
 }
 
@@ -420,12 +384,6 @@ function fitCamera() {
   _corner.copy(human.position).applyMatrix4(inv);
   const hw = human.scale.x / 2, hh = human.scale.y;
   add(_corner.x - hw, _corner.y); add(_corner.x + hw, _corner.y + hh);
-  // The stage too, so its edges aren't clipped.
-  for (let i = 0; i < 8; i++) {
-    _corner.set(i & 1 ? stageBox.max.x : stageBox.min.x, i & 2 ? stageBox.max.y : stageBox.min.y, i & 4 ? stageBox.max.z : stageBox.min.z);
-    _corner.applyMatrix4(inv);
-    add(_corner.x, _corner.y);
-  }
 
   const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
   const margin = 1.15;
