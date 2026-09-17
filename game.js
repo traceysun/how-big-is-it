@@ -3,7 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 const HUMAN_M = 1.7;        // reference person height in metres
-const ROUNDS = 5;           // objects per game; each is worth 20, so a game is out of 100
+const ROUNDS = 5;           // objects per game; each is worth 100, so a game is out of 500
 
 // 14 x 39 pixel person. '#' is ink.
 const HUMAN_PX = [
@@ -99,7 +99,7 @@ async function submitBest(score) {
 }
 function renderBanner() {
   const best = bannerBest ?? localBest();
-  const text = `welcome to how_big_is_it, the top score today was ${best ?? '__'}/100. thank you for stopping by, tracey xx`;
+  const text = `welcome to how_big_is_it, the top score today was ${best ?? '__'}/500. thank you for stopping by, tracey xx`;
   // Two copies so the loop is seamless.
   bannerTrack.innerHTML = `<span>${text}</span><span>${text}</span>`;
 }
@@ -256,12 +256,12 @@ function lockIn() {
   const guess = guessedHeight();
   const actual = current.height_m;
   const off = Math.abs(Math.log2(guess / actual));
-  const score = Math.round(20 * Math.max(0, 1 - off / 2)); // out of 20: 2x off = 10, 4x off = 0
+  const score = Math.round(100 * Math.max(0, 1 - off / 2)); // out of 100: 2x off = 50, 4x off = 0
   total += score;
 
   const ratio = guess / actual;
   const way = ratio > 1 ? `${ratio.toFixed(ratio > 10 ? 0 : 1)}× too big` : `${(1 / ratio).toFixed(1 / ratio > 10 ? 0 : 1)}× too small`;
-  scoreEl.textContent = `${score} / 20`;
+  scoreEl.textContent = `${score} / 100`;
   detailEl.textContent = off < 0.05
     ? `Spot on — the real thing is about ${fmt(actual)} tall.`
     : `You said ${fmt(guess)}. The real thing is about ${fmt(actual)} tall — your guess was ${way}.`;
@@ -286,11 +286,11 @@ function endGame() {
   resultEl.hidden = true;
   gameoverEl.hidden = false;
   roundEl.textContent = 'game over';
-  finalEl.textContent = `${total} / 100`;
+  finalEl.textContent = `${total} / 500`;
   finalDetailEl.textContent =
-    total >= 90 ? 'you have an eye for this.' :
-    total >= 70 ? 'nicely judged.' :
-    total >= 40 ? 'not bad — sizes are hard.' : 'everything is bigger and smaller than it looks.';
+    total >= 450 ? 'you have an eye for this.' :
+    total >= 350 ? 'nicely judged.' :
+    total >= 200 ? 'not bad — sizes are hard.' : 'everything is bigger and smaller than it looks.';
   recordScore(total);
 }
 

@@ -44,8 +44,8 @@ export default {
       if (request.method === 'POST' && path === '/score') {
         let score;
         try { score = Number((await request.json()).score); } catch { score = NaN; }
-        if (!Number.isInteger(score) || score < 0 || score > 100) {
-          return json({ error: 'score must be an integer 0-100' }, cors, 400);
+        if (!Number.isInteger(score) || score < 0 || score > 500) {
+          return json({ error: 'score must be an integer 0-500' }, cors, 400);
         }
         const prev = Number((await env.SCORES.get(scoreKey)) ?? -1);
         const best = Math.max(prev, score);
