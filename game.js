@@ -174,7 +174,7 @@ function updateGuessLabel() {} // the guess stays hidden until lock-in
 
 // ---------- Loading ----------
 async function loadObjects() {
-  const res = await fetch('objects.json');
+  const res = await fetch('objects.json', { cache: 'no-cache' });
   objects = await res.json();
   order = objects.map((_, i) => i).sort(() => Math.random() - 0.5);
   // ?o=okapi starts on a specific object (handy for testing / sharing).
