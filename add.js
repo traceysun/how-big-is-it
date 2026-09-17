@@ -1,16 +1,56 @@
-import { removeBackground, preload } from 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm';
-
 const SCORE_API = 'https://how-big-is-it-scores.suntracey.workers.dev';
 const MAX_PX = 1024;
 
-// Small quantised model (~10 MB instead of ~40) on the GPU when the browser has WebGPU.
-// Start fetching it right away so it's ready by the time the photo is taken.
-const hasGPU = 'gpu' in navigator;
-const cfg = (device) => ({ model: 'isnet_quint8', device, progress: onProgress });
-let preloading = preload(cfg(hasGPU ? 'gpu' : 'cpu')).catch(() => {});
+// The cut-out runs on the server (Replicate, via the worker) when that's configured: nothing to
+// download, a few seconds per photo. Otherwise it falls back to running a model in the browser,
+// which is a large one-time download.
+let serverCutout = null;   // null = unknown, true/false once probed
+let browserLib = null;
 let progressText = '';
-function onProgress(key, current, total) {
-  if (key.startsWith('fetch') && total) progressText = `downloading model… ${Math.round((current / total) * 100)}%`;
+const hasGPU = 'gpu' in navigator;
+const cfg = (device) => ({ model: 'isnet_fp16', device, progress: (key, cur, total) => {
+  if (key.startsWith('fetch') && total) progressText = `downloading model… ${Math.round((cur / total) * 100)}%`;
+} });
+
+async function probeServer() {
+  if (serverCutout !== null) return serverCutout;
+  try {
+    const r = await fetch(`${SCORE_API}/cutout`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    serverCutout = r.status === 400;       // 400 = configured (rejects the empty probe); 501/404 = not configured
+  } catch { serverCutout = false; }
+  if (!serverCutout) loadBrowserLib();
+  return serverCutout;
+}
+function loadBrowserLib() {
+  if (!browserLib) {
+    browserLib = import('https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm')
+      .then((m) => { m.preload(cfg(hasGPU ? 'gpu' : 'cpu')).catch(() => {}); return m; });
+  }
+  return browserLib;
+}
+probeServer();
+
+async function cutout(file) {
+  if (await probeServer()) {
+    // Replicate wants small data URLs: shrink until it's under ~240 KB.
+    let px = 1024, q = 0.85, dataUrl;
+    do {
+      dataUrl = await downscaleToDataUrl(file, px, q);
+      if (q > 0.6) q -= 0.1; else px = Math.round(px * 0.8);
+    } while (dataUrl.length > 240 * 1024 * 4 / 3 && px > 300);
+    const r = await fetch(`${SCORE_API}/cutout`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image: dataUrl }) });
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `server error ${r.status}`);
+    return r.blob();
+  }
+  const { removeBackground } = await loadBrowserLib();
+  const small = await downscale(file, MAX_PX);
+  try {
+    return await removeBackground(small, cfg(hasGPU ? 'gpu' : 'cpu'));
+  } catch (err) {
+    if (!hasGPU) throw err;
+    console.warn('GPU failed, retrying on CPU', err);
+    return await removeBackground(small, cfg('cpu'));
+  }
 }
 
 const photo = document.getElementById('photo');
@@ -28,21 +68,10 @@ photo.addEventListener('change', async () => {
   if (!file) return;
   details.hidden = true; done.hidden = true; previewWrap.hidden = true; cutoutPng = null;
   try {
-    say('shrinking photo…');
-    const small = await downscale(file, MAX_PX);
     say('cutting out the object…');
     const ticker = setInterval(() => { if (progressText) say(progressText); }, 300);
-    await preloading;
     let blob;
-    try {
-      blob = await removeBackground(small, cfg(hasGPU ? 'gpu' : 'cpu'));
-    } catch (err) {
-      if (!hasGPU) throw err;
-      console.warn('GPU failed, retrying on CPU', err);
-      blob = await removeBackground(small, cfg('cpu'));
-    } finally {
-      clearInterval(ticker);
-    }
+    try { blob = await cutout(file); } finally { clearInterval(ticker); }
     const img = await blobToImage(blob);
     const box = opaqueBounds(img);
     if (!box) throw new Error('no object found — try a clearer photo');
@@ -89,13 +118,19 @@ document.getElementById('again').addEventListener('click', () => {
   done.hidden = true; photo.value = ''; details.reset();
 });
 
-async function downscale(file, max) {
-  const img = await blobToImage(file);
+function drawSmall(img, max) {
   const s = Math.min(1, max / Math.max(img.width, img.height));
   const c = document.createElement('canvas');
   c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
   c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  return c;
+}
+async function downscale(file, max) {
+  const c = drawSmall(await blobToImage(file), max);
   return new Promise((res) => c.toBlob(res, 'image/jpeg', 0.92));
+}
+async function downscaleToDataUrl(file, max, q) {
+  return drawSmall(await blobToImage(file), max).toDataURL('image/jpeg', q);
 }
 function blobToImage(blob) {
   return new Promise((res, rej) => {

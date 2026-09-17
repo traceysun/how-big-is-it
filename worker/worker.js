@@ -11,6 +11,9 @@
 //   GET  /img/<id>               -> PNG
 //   POST /reject {id}            -> removes an object            admin
 //
+// Cut-out (optional, needs a REPLICATE_TOKEN secret; without it the browser does the cut-out itself)
+//   POST /cutout  {image}        image = data:image/jpeg;base64,... (<= 250 KB)  -> PNG with transparent background
+//
 // Admin routes need header  Authorization: Bearer <ADMIN_KEY>  (a Worker secret).
 // Needs a KV namespace bound as SCORES.
 
@@ -51,6 +54,23 @@ export default {
         const best = Math.max(prev, score);
         if (best > prev) await env.SCORES.put(scoreKey, String(best), { expirationTtl: 3 * 24 * 3600 });
         return json({ date, best }, cors);
+      }
+
+      // ---- server-side cut-out via Replicate ----
+      if (request.method === 'POST' && path === '/cutout') {
+        if (!env.REPLICATE_TOKEN) return json({ error: 'server cut-out not configured' }, cors, 501);
+        const { image } = await request.json();
+        if (!/^data:image\/(jpeg|png);base64,/.test(String(image || ''))) return json({ error: 'image must be a data URL' }, cors, 400);
+        const r = await fetch('https://api.replicate.com/v1/models/851-labs/background-remover/predictions', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${env.REPLICATE_TOKEN}`, 'Content-Type': 'application/json', Prefer: 'wait=60' },
+          body: JSON.stringify({ input: { image, format: 'png' } }),
+        });
+        const pred = await r.json();
+        const out = Array.isArray(pred.output) ? pred.output[0] : pred.output;
+        if (!r.ok || !out) return json({ error: pred.error || pred.detail || `replicate ${r.status}` }, cors, 502);
+        const png = await fetch(out);
+        return new Response(await png.arrayBuffer(), { headers: { ...cors, 'Content-Type': 'image/png' } });
       }
 
       // ---- community objects ----
