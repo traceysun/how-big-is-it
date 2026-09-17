@@ -13,6 +13,8 @@ body {
   color: var(--ink);
   font-family: "Pixelify Sans", "Courier New", monospace;
   user-select: none;
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: unset;
 }
 
 header {
@@ -44,15 +46,23 @@ h1 { margin: 0; font-size: 26px; font-weight: 500; }
 #loading[hidden] { display: none; }
 
 footer {
-  border-top: 1px solid var(--rule);
+  position: relative;
   padding: 16px 20px 22px;
+}
+/* dotted pixel rule */
+footer::before {
+  content: ''; position: absolute; top: 0; left: 20px; right: 20px; height: 3px;
+  background: repeating-linear-gradient(90deg, var(--ink) 0 3px, transparent 3px 9px);
 }
 #controls { display: flex; justify-content: flex-end; }
 button {
   font: inherit; font-size: 16px;
+  margin: 3px;
   padding: 8px 18px;
-  background: none; color: var(--ink);
-  border: 2px solid var(--ink); border-radius: 0;
+  background: var(--paper); color: var(--ink);
+  border: 0; border-radius: 0;
+  /* notched-corner pixel border */
+  box-shadow: 3px 0 0 0 var(--ink), -3px 0 0 0 var(--ink), 0 3px 0 0 var(--ink), 0 -3px 0 0 var(--ink);
   cursor: pointer;
 }
 button:hover { background: var(--ink); color: var(--paper); }
