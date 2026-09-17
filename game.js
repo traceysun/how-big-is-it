@@ -3,7 +3,6 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 const HUMAN_M = 1.7;        // reference person height in metres
-const MAX_FRAME = 10;       // how many object-heights the camera will zoom out to fit the person
 
 // ---------- DOM ----------
 const canvas = document.getElementById('view');
@@ -66,6 +65,7 @@ scene.add(human);
 const loader = new GLTFLoader();
 let model = null;           // current object, normalised to 1 unit tall
 let modelWidth = 1;         // footprint width in units (x/z extent)
+let modelBox = new THREE.Box3(new THREE.Vector3(-0.5, 0, -0.5), new THREE.Vector3(0.5, 1, 0.5));
 
 // ---------- Game state ----------
 let objects = [];
@@ -134,6 +134,8 @@ function startRound() {
     const c = box2.getCenter(new THREE.Vector3());
     model.position.set(-c.x, -box2.min.y, -c.z);
     modelWidth = Math.hypot(box2.max.x - box2.min.x, box2.max.z - box2.min.z); // footprint diagonal: the camera views it at an angle
+    model.updateMatrixWorld(true);
+    modelBox = new THREE.Box3().setFromObject(model);
 
     scene.add(model);
     loadingEl.hidden = true;
@@ -273,24 +275,47 @@ function layout() {
   const gap = 0.12 * Math.max(1, hu);
   const hx = modelWidth / 2 + gap + humanW / 2;
   human.position.set(hx, 0, 0);
+  ground.scale.setScalar(Math.max(modelWidth, hx + humanW / 2) * 1.1);
+  controls.target.set(hx / 2, Math.max(1, hu) * 0.45, 0);
+}
 
-  const frame = Math.min(Math.max(1, hu), MAX_FRAME);
-  const left = -modelWidth / 2, right = hx + humanW / 2;
-  ground.scale.setScalar(Math.max(modelWidth, right) * 1.1);
+// Size the orthographic frustum so the object's box and the person are always fully on screen,
+// whatever the viewport shape or how the scene has been spun.
+const _corner = new THREE.Vector3();
+function fitCamera() {
+  camera.updateMatrixWorld();
+  const inv = camera.matrixWorldInverse;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  const add = (x, y) => {
+    minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+  };
+  for (let i = 0; i < 8; i++) {
+    _corner.set(i & 1 ? modelBox.max.x : modelBox.min.x, i & 2 ? modelBox.max.y : modelBox.min.y, i & 4 ? modelBox.max.z : modelBox.min.z);
+    _corner.applyMatrix4(inv);
+    add(_corner.x, _corner.y);
+  }
+  // The person is a billboard, so in camera space it is an upright rectangle.
+  _corner.copy(human.position).applyMatrix4(inv);
+  const hw = human.scale.x / 2, hh = human.scale.y;
+  add(_corner.x - hw, _corner.y); add(_corner.x + hw, _corner.y + hh);
 
-  // Keep both figures framed, vertically and horizontally. Orthographic, so zoom is just the frustum size.
-  const aspect = canvas.clientWidth / canvas.clientHeight;
-  const half = Math.max(frame * 0.62, ((right - left) / 2) * 1.15 / aspect);
-  camera.top = half; camera.bottom = -half;
-  camera.left = -half * aspect; camera.right = half * aspect;
+  const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
+  const margin = 1.15;
+  let halfW = ((maxX - minX) / 2) * margin;
+  let halfH = ((maxY - minY) / 2) * margin;
+  if (halfW / halfH < aspect) halfW = halfH * aspect; else halfH = halfW / aspect;
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+  camera.left = cx - halfW; camera.right = cx + halfW;
+  camera.top = cy + halfH; camera.bottom = cy - halfH;
   camera.updateProjectionMatrix();
-  controls.target.set((left + right) / 2, frame * 0.42, 0);
 }
 
 function tick() {
   resize();
   layout();
   controls.update();
+  fitCamera();
   renderer.render(scene, camera);
   requestAnimationFrame(tick);
 }
