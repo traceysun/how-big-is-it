@@ -53,7 +53,6 @@ const nameEl = document.getElementById('object-name');
 const roundEl = document.getElementById('round');
 const loadingEl = document.getElementById('loading');
 const hintEl = document.getElementById('hint');
-const guessEl = document.getElementById('guess');
 const lockBtn = document.getElementById('lock');
 const controlsEl = document.getElementById('controls');
 let logHeight = 0;          // log10 of the guessed object height in metres
@@ -129,13 +128,17 @@ controls.dampingFactor = 0.12;
 controls.maxPolarAngle = Math.PI / 2 + 0.15;
 
 // Ground: a soft disc so both figures visibly stand on the same floor.
-// A pixel stage: a low platform under both figures, tiled top and striped sides.
-const stageTop = makeStageTexture('top');
-const stageSide = makeStageTexture('side');
-const stage = new THREE.Mesh(
+// A pixel stage: a checkerboard of chunky blocks under both figures, so its edges are stepped
+// like pixel art from any angle.
+const MAX_BLOCKS = 4096;
+const stage = new THREE.InstancedMesh(
   new THREE.BoxGeometry(1, 1, 1),
-  [stageSide, stageSide, stageTop, stageSide, stageSide, stageSide].map((map) => new THREE.MeshBasicMaterial({ map }))
+  new THREE.MeshLambertMaterial(),
+  MAX_BLOCKS
 );
+const stageBox = new THREE.Box3();
+const STAGE_COLORS = [new THREE.Color('#f0f0f0'), new THREE.Color('#d6d6d6')];
+const _m = new THREE.Matrix4();
 scene.add(stage);
 
 // The person is a billboard sprite so it always faces the camera as the scene spins.
@@ -167,9 +170,7 @@ function fmt(m) {
   return `${Math.round(m)} m`;
 }
 
-function updateGuessLabel() {
-  guessEl.innerHTML = `about <b>${fmt(guessedHeight())}</b> tall`;
-}
+function updateGuessLabel() {} // the guess stays hidden until lock-in
 
 // ---------- Loading ----------
 async function loadObjects() {
@@ -190,7 +191,6 @@ function startRound() {
   roundEl.textContent = round === 0 ? 'round 1' : `round ${round + 1} · ${total} pts`;
   resultEl.hidden = true;
   controlsEl.hidden = false;
-  guessEl.hidden = false;
   hintEl.hidden = false;
   setLogHeight(0);
   loadingEl.hidden = false;
@@ -250,7 +250,6 @@ function lockIn() {
 
   // Snap the person to the true scale so the reveal is visual too.
   setLogHeight(Math.log10(actual));
-  guessEl.hidden = true;
   hintEl.hidden = true;
   controlsEl.hidden = true;
   resultEl.hidden = false;
@@ -332,23 +331,6 @@ function makeHumanTexture() {
   return pixelTexture(c);
 }
 
-function makeStageTexture(kind) {
-  const n = 8;
-  const c = document.createElement('canvas');
-  c.width = n; c.height = n;
-  const g = c.getContext('2d');
-  if (kind === 'top') {
-    g.fillStyle = '#ececec'; g.fillRect(0, 0, n, n);       // tile
-    g.fillStyle = '#c8c8c8'; g.fillRect(0, 0, n, 1); g.fillRect(0, 0, 1, n); // grout
-  } else {
-    g.fillStyle = '#b4b4b4'; g.fillRect(0, 0, n, n);
-    g.fillStyle = '#8c8c8c'; g.fillRect(0, 0, n, 1); g.fillRect(0, 4, n, 1);  // stripes
-  }
-  const tex = pixelTexture(c);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  return tex;
-}
-
 function resize() {
   const w = canvas.clientWidth, h = canvas.clientHeight;
   if (canvas.width !== w * renderer.getPixelRatio() || canvas.height !== h * renderer.getPixelRatio()) {
@@ -369,12 +351,28 @@ function layout() {
   const big = Math.max(1, hu);
   const w = (modelWidth / 2 + hx + humanW / 2) * 1.25;   // span both figures with a margin
   const d = Math.max(modelWidth, humanW) * 1.6;
-  const h = 0.08 * big;
-  stage.scale.set(w, h, d);
-  stage.position.set((hx + humanW / 2 - modelWidth / 2) / 2, -h / 2, 0);
-  const tile = 0.2 * big;                                 // tile size scales with the scene
-  stageTop.repeat.set(Math.max(1, Math.round(w / tile)), Math.max(1, Math.round(d / tile)));
-  stageSide.repeat.set(Math.max(1, Math.round(w / tile)), 1);
+  const cx = (hx + humanW / 2 - modelWidth / 2) / 2;
+
+  // Block size scales with the scene; coarsen if the grid would get too big.
+  let b = 0.16 * big;
+  let nx = Math.ceil(w / b), nz = Math.ceil(d / b);
+  while (nx * nz > MAX_BLOCKS) { b *= 1.5; nx = Math.ceil(w / b); nz = Math.ceil(d / b); }
+  const bh = 0.5 * b;
+  const x0 = cx - (nx * b) / 2 + b / 2, z0 = -(nz * b) / 2 + b / 2;
+  let i = 0;
+  for (let ix = 0; ix < nx; ix++) {
+    for (let iz = 0; iz < nz; iz++) {
+      _m.makeScale(b, bh, b).setPosition(x0 + ix * b, -bh / 2, z0 + iz * b);
+      stage.setMatrixAt(i, _m);
+      stage.setColorAt(i, STAGE_COLORS[(ix + iz) & 1]);
+      i++;
+    }
+  }
+  stage.count = i;
+  stage.instanceMatrix.needsUpdate = true;
+  stage.instanceColor.needsUpdate = true;
+  stageBox.min.set(x0 - b / 2, -bh, z0 - b / 2);
+  stageBox.max.set(x0 + (nx - 0.5) * b, 0, z0 + (nz - 0.5) * b);
 
   controls.target.set(hx / 2, big * 0.45, 0);
 }
@@ -401,8 +399,8 @@ function fitCamera() {
   add(_corner.x - hw, _corner.y); add(_corner.x + hw, _corner.y + hh);
   // The stage too, so its edges aren't clipped.
   for (let i = 0; i < 8; i++) {
-    _corner.set(i & 1 ? 0.5 : -0.5, i & 2 ? 0.5 : -0.5, i & 4 ? 0.5 : -0.5);
-    stage.localToWorld(_corner).applyMatrix4(inv);
+    _corner.set(i & 1 ? stageBox.max.x : stageBox.min.x, i & 2 ? stageBox.max.y : stageBox.min.y, i & 4 ? stageBox.max.z : stageBox.min.z);
+    _corner.applyMatrix4(inv);
     add(_corner.x, _corner.y);
   }
 
