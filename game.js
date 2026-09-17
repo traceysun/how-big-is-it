@@ -10,10 +10,13 @@ const canvas = document.getElementById('view');
 const nameEl = document.getElementById('object-name');
 const roundEl = document.getElementById('round');
 const loadingEl = document.getElementById('loading');
-const slider = document.getElementById('size');
+const hintEl = document.getElementById('hint');
 const guessEl = document.getElementById('guess');
 const lockBtn = document.getElementById('lock');
 const controlsEl = document.getElementById('controls');
+let logHeight = 0;          // log10 of the guessed object height in metres
+const LOG_MIN = -3, LOG_MAX = 2;
+function setLogHeight(v) { logHeight = Math.min(LOG_MAX, Math.max(LOG_MIN, v)); updateGuessLabel(); }
 const resultEl = document.getElementById('result');
 const scoreEl = document.getElementById('score');
 const detailEl = document.getElementById('detail');
@@ -26,8 +29,8 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const scene = new THREE.Scene();
-scene.add(new THREE.HemisphereLight(0xffffff, 0x444466, 1.6));
-const sun = new THREE.DirectionalLight(0xffffff, 1.4);
+scene.add(new THREE.HemisphereLight(0xfff6e6, 0xbfb6a4, 2.0));
+const sun = new THREE.DirectionalLight(0xfff3dc, 1.0);
 sun.position.set(2, 4, 3);
 scene.add(sun);
 
@@ -42,10 +45,15 @@ controls.dampingFactor = 0.12;
 controls.maxPolarAngle = Math.PI / 2 + 0.15;
 
 // Ground: a soft disc so both figures visibly stand on the same floor.
-const ground = new THREE.Mesh(
-  new THREE.CircleGeometry(1, 64),
-  new THREE.MeshBasicMaterial({ color: 0x2a2f3a, transparent: true, opacity: 0.7 })
-);
+const ground = new THREE.Group();
+ground.add(new THREE.Mesh(
+  new THREE.CircleGeometry(1, 96),
+  new THREE.MeshBasicMaterial({ color: 0xe6dfcc })
+));
+ground.add(new THREE.Mesh(
+  new THREE.RingGeometry(0.985, 1, 96),
+  new THREE.MeshBasicMaterial({ color: 0x8d8477 })
+));
 ground.rotation.x = -Math.PI / 2;
 ground.position.y = -0.002;
 scene.add(ground);
@@ -67,8 +75,8 @@ let total = 0;
 let current = null;
 let locked = false;
 
-// slider value = log10(guessed object height in metres)
-function guessedHeight() { return Math.pow(10, parseFloat(slider.value)); }
+
+function guessedHeight() { return Math.pow(10, logHeight); }
 function humanUnits() { return HUMAN_M / guessedHeight(); } // person height in object-units
 
 function fmt(m) {
@@ -79,7 +87,7 @@ function fmt(m) {
 }
 
 function updateGuessLabel() {
-  guessEl.innerHTML = `The object is <b>${fmt(guessedHeight())}</b> tall`;
+  guessEl.innerHTML = `about <b>${fmt(guessedHeight())}</b> tall`;
 }
 
 // ---------- Loading ----------
@@ -98,11 +106,12 @@ function startRound() {
   current = objects[order[round % order.length]];
   locked = false;
   nameEl.textContent = current.name;
-  roundEl.textContent = `Round ${round + 1} · Total ${total}`;
+  roundEl.textContent = round === 0 ? 'round 1' : `round ${round + 1} · ${total} pts`;
   resultEl.hidden = true;
-  controlsEl.style.display = '';
-  slider.value = 0;
-  updateGuessLabel();
+  controlsEl.hidden = false;
+  guessEl.hidden = false;
+  hintEl.hidden = false;
+  setLogHeight(0);
   loadingEl.hidden = false;
 
   if (model) { scene.remove(model); model = null; }
@@ -153,11 +162,13 @@ function lockIn() {
     ? `Spot on — the real thing is about ${fmt(actual)} tall.`
     : `You said ${fmt(guess)}. The real thing is about ${fmt(actual)} tall — your guess was ${way}.`;
   factEl.textContent = current.fact || '';
-  roundEl.textContent = `Round ${round + 1} · Total ${total}`;
+  roundEl.textContent = `round ${round + 1} · ${total} pts`;
 
   // Snap the person to the true scale so the reveal is visual too.
-  slider.value = Math.log10(actual);
-  controlsEl.style.display = 'none';
+  setLogHeight(Math.log10(actual));
+  guessEl.hidden = true;
+  hintEl.hidden = true;
+  controlsEl.hidden = true;
   resultEl.hidden = false;
 }
 
@@ -167,7 +178,6 @@ function nextRound() {
 }
 
 // ---------- Input ----------
-slider.addEventListener('input', updateGuessLabel);
 lockBtn.addEventListener('click', lockIn);
 nextBtn.addEventListener('click', nextRound);
 window.addEventListener('keydown', (e) => {
@@ -192,7 +202,7 @@ canvas.addEventListener('pointerdown', (e) => {
   if (locked || !hitsHuman(e)) return;
   dragging = true;
   dragStartY = e.clientY;
-  dragStartVal = parseFloat(slider.value);
+  dragStartVal = logHeight;
   controls.enabled = false;
   canvas.classList.add('resizing');
   canvas.setPointerCapture(e.pointerId);
@@ -200,9 +210,7 @@ canvas.addEventListener('pointerdown', (e) => {
 canvas.addEventListener('pointermove', (e) => {
   if (dragging) {
     // Drag up = bigger person = smaller object. 250px per decade.
-    const v = dragStartVal + (e.clientY - dragStartY) / 250;
-    slider.value = Math.min(parseFloat(slider.max), Math.max(parseFloat(slider.min), v));
-    updateGuessLabel();
+    setLogHeight(dragStartVal + (e.clientY - dragStartY) / 250);
   } else if (!locked) {
     canvas.classList.toggle('resizing', hitsHuman(e));
   }
@@ -223,26 +231,30 @@ function makeHumanTexture() {
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
   const g = c.getContext('2d');
-  g.fillStyle = '#f2b8a0';
+  g.strokeStyle = '#2a2620';
+  g.lineWidth = 9;
+  g.lineCap = 'round';
+  g.lineJoin = 'round';
   const cx = w / 2;
   // head
-  g.beginPath(); g.arc(cx, 60, 48, 0, Math.PI * 2); g.fill();
-  // torso
-  roundRect(g, cx - 62, 118, 124, 260, 40);
+  g.beginPath(); g.arc(cx, 58, 46, 0, Math.PI * 2); g.stroke();
+  // body
+  line(g, cx, 104, cx, 400);
   // arms
-  roundRect(g, cx - 118, 130, 46, 240, 23);
-  roundRect(g, cx + 72, 130, 46, 240, 23);
+  line(g, cx, 170, cx - 92, 330);
+  line(g, cx, 170, cx + 92, 330);
   // legs
-  roundRect(g, cx - 60, 360, 54, 350, 27);
-  roundRect(g, cx + 6, 360, 54, 350, 27);
+  line(g, cx, 400, cx - 70, 716);
+  line(g, cx, 400, cx + 70, 716);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
-function roundRect(g, x, y, w, h, r) {
+function line(g, x0, y0, x1, y1) {
   g.beginPath();
-  g.roundRect(x, y, w, h, r);
-  g.fill();
+  g.moveTo(x0, y0);
+  g.lineTo(x1, y1);
+  g.stroke();
 }
 
 function resize() {
