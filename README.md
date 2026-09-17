@@ -44,4 +44,4 @@ The banner's "top score today" comes from a tiny Cloudflare Worker with a KV nam
 
 ## Add your own object
 
-`add.html` lets anyone photograph a thing; the browser cuts the object out (`@imgly/background-removal`, runs locally, first use downloads a ~40 MB model), they enter its real height, and it's sent to the worker as *pending*. `admin.html` (needs the worker's `ADMIN_KEY` secret) approves or rejects. Approved cut-outs are served from the worker and mixed into the lineup as flat cards.
+`add.html` lets anyone photograph a thing; the browser cuts the object out (`@imgly/background-removal`, runs locally, first use downloads a ~10 MB quantised model, preloaded on page open, GPU when available), they enter its real height, and it's added to the lineup straight away. `admin.html` (needs the worker's `ADMIN_KEY` secret) lets you remove any. Cut-outs are served from the worker and mixed into the lineup as flat cards.

@@ -6,11 +6,10 @@
 //
 // Community objects (photo cut-outs)
 //   POST /submit  {name, height_m, fact, image}   image = data:image/png;base64,...  (<= 5 MB)
-//                                -> { id, status: "pending" }
-//   GET  /objects                -> [{ id, name, height_m, fact, image: "/img/<id>" }]   approved only
+//                                -> { id, status: "approved" }     goes live immediately
+//   GET  /objects                -> [{ id, name, height_m, fact, image: "/img/<id>" }]
 //   GET  /img/<id>               -> PNG
-//   GET  /pending                -> [{...}]                 admin
-//   POST /approve {id} | /reject {id}                        admin
+//   POST /reject {id}            -> removes an object            admin
 //
 // Admin routes need header  Authorization: Bearer <ADMIN_KEY>  (a Worker secret).
 // Needs a KV namespace bound as SCORES.
@@ -68,11 +67,11 @@ export default {
         if (bytes.length > MAX_IMAGE_BYTES) return json({ error: 'image too large' }, cors, 413);
 
         const id = crypto.randomUUID().slice(0, 8);
-        const meta = { id, name, height_m, fact, status: 'pending', created: new Date().toISOString() };
+        const meta = { id, name, height_m, fact, status: 'approved', created: new Date().toISOString() };
         await env.SCORES.put(`img:${id}`, bytes);
         await env.SCORES.put(`obj:${id}`, JSON.stringify(meta));
-        await pushList(env, 'list:pending', id);
-        return json({ id, status: 'pending' }, cors);
+        await pushList(env, 'list:approved', id);
+        return json({ id, status: 'approved' }, cors);
       }
       if (request.method === 'GET' && path === '/objects') {
         return json(await readObjects(env, 'list:approved'), cors);
@@ -88,28 +87,13 @@ export default {
 
       // ---- admin ----
       const isAdmin = env.ADMIN_KEY && request.headers.get('Authorization') === `Bearer ${env.ADMIN_KEY}`;
-      if (path === '/pending' || path === '/approve' || path === '/reject') {
+      if (request.method === 'POST' && path === '/reject') {
         if (!isAdmin) return json({ error: 'unauthorised' }, cors, 401);
-        if (request.method === 'GET' && path === '/pending') {
-          return json(await readObjects(env, 'list:pending'), cors);
-        }
-        if (request.method === 'POST') {
-          const { id } = await request.json();
-          const raw = await env.SCORES.get(`obj:${id}`);
-          if (!raw) return json({ error: 'not found' }, cors, 404);
-          const meta = JSON.parse(raw);
-          await removeFromList(env, 'list:pending', id);
-          await removeFromList(env, 'list:approved', id);
-          if (path === '/approve') {
-            meta.status = 'approved';
-            await env.SCORES.put(`obj:${id}`, JSON.stringify(meta));
-            await pushList(env, 'list:approved', id);
-          } else {
-            await env.SCORES.delete(`obj:${id}`);
-            await env.SCORES.delete(`img:${id}`);
-          }
-          return json({ ok: true }, cors);
-        }
+        const { id } = await request.json();
+        await removeFromList(env, 'list:approved', id);
+        await env.SCORES.delete(`obj:${id}`);
+        await env.SCORES.delete(`img:${id}`);
+        return json({ ok: true }, cors);
       }
 
       return json({ error: 'not found' }, cors, 404);

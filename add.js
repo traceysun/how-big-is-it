@@ -1,7 +1,17 @@
-import { removeBackground } from 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm';
+import { removeBackground, preload } from 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm';
 
 const SCORE_API = 'https://how-big-is-it-scores.suntracey.workers.dev';
 const MAX_PX = 1024;
+
+// Small quantised model (~10 MB instead of ~40) on the GPU when the browser has WebGPU.
+// Start fetching it right away so it's ready by the time the photo is taken.
+const hasGPU = 'gpu' in navigator;
+const cfg = (device) => ({ model: 'isnet_quint8', device, progress: onProgress });
+let preloading = preload(cfg(hasGPU ? 'gpu' : 'cpu')).catch(() => {});
+let progressText = '';
+function onProgress(key, current, total) {
+  if (key.startsWith('fetch') && total) progressText = `downloading model… ${Math.round((current / total) * 100)}%`;
+}
 
 const photo = document.getElementById('photo');
 const statusEl = document.getElementById('status');
@@ -20,12 +30,19 @@ photo.addEventListener('change', async () => {
   try {
     say('shrinking photo…');
     const small = await downscale(file, MAX_PX);
-    say('cutting out the object… (first time downloads a ~40 MB model, then it\'s fast)');
-    const blob = await removeBackground(small, {
-      progress: (key, current, total) => {
-        if (key.startsWith('fetch')) say(`downloading model… ${Math.round((current / total) * 100)}%`);
-      },
-    });
+    say('cutting out the object…');
+    const ticker = setInterval(() => { if (progressText) say(progressText); }, 300);
+    await preloading;
+    let blob;
+    try {
+      blob = await removeBackground(small, cfg(hasGPU ? 'gpu' : 'cpu'));
+    } catch (err) {
+      if (!hasGPU) throw err;
+      console.warn('GPU failed, retrying on CPU', err);
+      blob = await removeBackground(small, cfg('cpu'));
+    } finally {
+      clearInterval(ticker);
+    }
     const img = await blobToImage(blob);
     const box = opaqueBounds(img);
     if (!box) throw new Error('no object found — try a clearer photo');
@@ -64,7 +81,7 @@ details.addEventListener('submit', async (e) => {
   } catch (err) {
     say(`couldn't send: ${err.message}`);
   } finally {
-    btn.disabled = false; btn.textContent = 'submit for approval';
+    btn.disabled = false; btn.textContent = 'add it';
   }
 });
 

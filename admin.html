@@ -3,18 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>approve objects</title>
+  <title>manage objects</title>
   <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css?v=9">
 </head>
 <body class="page">
   <header>
-    <h1>approve objects</h1>
+    <h1>manage objects</h1>
     <a href="./" class="link">← back to the game</a>
   </header>
   <main class="form">
     <label>admin key<input id="key" type="password" placeholder="paste your ADMIN_KEY"></label>
-    <button id="load" type="button">load pending</button>
+    <button id="load" type="button">load objects</button>
     <div id="status" class="muted"></div>
     <div id="list"></div>
   </main>
@@ -29,22 +29,23 @@
     async function load() {
       try { sessionStorage.setItem('admin-key', keyEl.value.trim()); } catch {}
       status.textContent = 'loading…';
-      const r = await fetch(`${SCORE_API}/pending?t=${Date.now()}`, { headers: headers(), cache: 'no-store' });
-      if (!r.ok) { status.textContent = r.status === 401 ? 'wrong key' : `error ${r.status}`; return; }
+      const r = await fetch(`${SCORE_API}/objects?t=${Date.now()}`, { cache: 'no-store' });
+      if (!r.ok) { status.textContent = `error ${r.status}`; return; }
       const items = await r.json();
-      status.textContent = items.length ? `${items.length} waiting` : 'nothing waiting';
+      status.textContent = items.length ? `${items.length} live` : 'no community objects yet';
       list.innerHTML = '';
       for (const it of items) {
         const card = document.createElement('div');
         card.className = 'card';
         card.innerHTML = `<img src="${SCORE_API}${it.image}" alt="">
           <div><b>${esc(it.name)}</b> · ${it.height_m} m<br><span class="muted">${esc(it.fact || '')}</span></div>
-          <div class="row"><button data-act="approve">✓ approve</button><button data-act="reject">✗ reject</button></div>`;
+          <div class="row"><button data-act="reject">✗ remove</button></div>`;
         card.querySelectorAll('button').forEach((b) => b.addEventListener('click', async () => {
           b.disabled = true;
-          await fetch(`${SCORE_API}/${b.dataset.act}`, { method: 'POST', headers: headers(), body: JSON.stringify({ id: it.id }) });
+          const rr = await fetch(`${SCORE_API}/${b.dataset.act}`, { method: 'POST', headers: headers(), body: JSON.stringify({ id: it.id }) });
+          if (!rr.ok) { b.disabled = false; status.textContent = rr.status === 401 ? 'wrong key' : `error ${rr.status}`; return; }
           card.remove();
-          status.textContent = list.children.length ? `${list.children.length} waiting` : 'nothing waiting';
+          status.textContent = list.children.length ? `${list.children.length} live` : 'no community objects yet';
         }));
         list.appendChild(card);
       }
